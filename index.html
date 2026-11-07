@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LocalShare</title>
+<style>
+:root{
+  --bg:#f3f4f6;--panel:#ffffff;--text:#1d2129;--muted:#6b7280;--border:#e2e4e8;
+  --accent:#2563eb;--mine:#2563eb;--mine-text:#fff;--theirs:#ffffff;--theirs-text:#1d2129;
+  --ok:#16a34a;--bad:#dc2626;--hover:rgba(0,0,0,.05);--active:rgba(37,99,235,.12);
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0f1115;--panel:#181b21;--text:#e6e8eb;--muted:#9aa1ab;--border:#2a2e36;
+  --accent:#4b8cf5;--mine:#2f6fe0;--theirs:#20242c;--theirs-text:#e6e8eb;--hover:rgba(255,255,255,.06);--active:rgba(75,140,245,.18);
+}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;overflow:hidden}
+button{font:inherit;cursor:pointer;border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:8px;padding:7px 12px}
+button:hover{background:var(--hover)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover{filter:brightness(1.08)}
+input,textarea{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 10px;outline:none}
+input:focus,textarea:focus{border-color:var(--accent)}
+.mono{font-family:ui-monospace,Consolas,monospace}
+
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.brand{font-weight:700;font-size:17px;letter-spacing:-.01em}
+.roomtitle{font-weight:600;font-size:16px}
+.roomtitle .slash{color:var(--muted);font-weight:400}
+.status{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--bad)}
+.dot.on{background:var(--ok)}
+.spacer{flex:1}
+.name{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.name input{width:140px;padding:5px 8px}
+#roomsBtn{display:none}
+
+#wrap{flex:1;display:flex;min-height:0}
+
+/* rooms sidebar */
+#rooms{width:230px;flex:none;border-right:1px solid var(--border);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+#rooms .head{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 6px}
+#rooms h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0}
+#closeRooms{display:none;padding:4px 10px}
+#roomList{flex:1;overflow-y:auto;padding:4px 8px}
+.room{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:0;background:none;padding:8px 10px;border-radius:8px;color:var(--text)}
+.room:hover{background:var(--hover)}
+.room.active{background:var(--active);font-weight:600}
+.room .rn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.room .rn::before{content:"/";color:var(--muted);margin-right:2px;font-weight:400}
+.room .on{font-size:12px;color:var(--ok)}
+.badge{background:var(--accent);color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px}
+#joinForm{padding:10px 12px 14px;border-top:1px solid var(--border)}
+#joinForm label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+#joinForm .row{display:flex;gap:6px}
+#joinForm input{flex:1;min-width:0}
+#joinPreview{font-size:12px;color:var(--muted);margin-top:6px;min-height:1.2em;word-break:break-all}
+
+/* chat */
+#log{flex:1;overflow-y:auto;padding:18px 16px;display:flex;flex-direction:column;gap:12px}
+.empty{margin:auto;text-align:center;color:var(--muted);max-width:440px;padding:20px}
+.empty h2{color:var(--text);font-size:18px;margin:0 0 6px}
+.urls{display:flex;flex-direction:column;gap:6px}
+.empty .urls{margin-top:14px;align-items:center}
+.url{font-family:ui-monospace,Consolas,monospace;font-size:14px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);cursor:pointer;word-break:break-all;text-align:left}
+#older{align-self:center;font-size:13px;color:var(--muted)}
+
+.msg{max-width:min(80%,720px);display:flex;flex-direction:column;gap:3px;align-self:flex-start;align-items:flex-start}
+.msg.mine{align-self:flex-end;align-items:flex-end}
+.meta{font-size:12px;color:var(--muted);padding:0 4px}
+.bubble{background:var(--theirs);color:var(--theirs-text);border:1px solid var(--border);border-radius:14px;padding:8px 12px;white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%}
+.mine .bubble{background:var(--mine);color:var(--mine-text);border-color:transparent}
+.bubble a{color:inherit;text-decoration:underline}
+.bubble.collapsed{max-height:20em;overflow:hidden;-webkit-mask-image:linear-gradient(#000 70%,transparent);mask-image:linear-gradient(#000 70%,transparent)}
+.actions{display:flex;gap:4px;flex-wrap:wrap}
+.actions button{font-size:12px;padding:2px 8px;border-radius:6px;color:var(--muted)}
+.actions .quiet{opacity:0;transition:opacity .15s}
+.msg:hover .quiet,.msg:focus-within .quiet{opacity:1}
+@media (hover:none){.actions .quiet{opacity:1}}
+
+.file{display:flex;align-items:center;gap:10px;white-space:normal}
+.ficon{flex:none;width:38px;height:38px;border-radius:9px;background:rgba(127,127,127,.18);display:grid;place-items:center;font-size:11px;font-weight:700;text-transform:uppercase}
+.fn{font-weight:600;word-break:break-all}
+.fs{font-size:12px;opacity:.8}
+.file a.dl{flex:none;margin-left:6px;text-decoration:none;border:1px solid currentColor;border-radius:7px;padding:3px 9px;font-size:13px;opacity:.9}
+.preview{display:block;max-width:100%;max-height:320px;border-radius:10px;margin-top:8px;background:#0002}
+.progress{height:5px;background:rgba(127,127,127,.3);border-radius:3px;overflow:hidden;margin-top:7px;width:220px;max-width:100%}
+.progress>div{height:100%;background:currentColor;width:0;transition:width .15s}
+.err{color:#fecaca}
+
+footer{display:flex;gap:8px;align-items:flex-end;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--border)}
+footer textarea{flex:1;resize:none;max-height:40vh;min-height:40px;line-height:1.4}
+footer button{height:40px}
+#attach{font-size:20px;padding:0 12px;line-height:1}
+#chat{flex:1;display:flex;flex-direction:column;min-width:0}
+
+/* files drawer */
+#drawer{width:340px;flex:none;border-left:1px solid var(--border);background:var(--panel);overflow-y:auto;display:none;padding:14px 16px}
+#drawer.open{display:block}
+#drawer h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:16px 0 8px}
+.drawer-head{display:flex;align-items:center;justify-content:space-between}
+.drawer-head strong{font-size:16px}
+.frow{display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:8px;text-decoration:none;color:var(--text)}
+.frow:hover{background:var(--hover)}
+.frow .fn{font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;word-break:normal}
+.frow .fs{color:var(--muted);flex:none}
+.hint{font-size:13px;color:var(--muted)}
+
+@media (max-width:760px){
+  #roomsBtn{display:inline-block}
+  #rooms{display:none}
+  #rooms.open{display:flex;position:fixed;inset:0;width:auto;z-index:20}
+  #closeRooms{display:inline-block}
+  #drawer.open{position:fixed;inset:0;width:auto;z-index:20}
+  header{gap:8px}
+  .brand{display:none}
+  .name input{width:110px}
+  .msg{max-width:92%}
+}
+
+#drop{position:fixed;inset:10px;border:3px dashed var(--accent);border-radius:16px;background:color-mix(in srgb,var(--bg) 85%,transparent);display:none;place-items:center;font-size:22px;font-weight:600;color:var(--accent);z-index:30;pointer-events:none}
+#drop.show{display:grid}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#111827;color:#fff;padding:8px 14px;border-radius:8px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:40}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <button id="roomsBtn" title="Rooms">Rooms</button>
+  <span class="brand">LocalShare</span>
+  <span class="roomtitle"><span class="slash">/</span><span id="roomName">general</span></span>
+  <span class="status"><span class="dot" id="dot"></span><span id="online">Connecting…</span></span>
+  <span class="spacer"></span>
+  <label class="name">Your name <input id="name" maxlength="40" autocomplete="off"></label>
+  <button id="filesBtn" title="Files in this room &amp; join links">Files</button>
+</header>
+
+<div id="wrap">
+  <nav id="rooms">
+    <div class="head"><h3>Rooms</h3><button id="closeRooms">Close</button></div>
+    <div id="roomList"></div>
+    <form id="joinForm" autocomplete="off">
+      <label for="joinInput">Join or create a room</label>
+      <div class="row">
+        <input id="joinInput" placeholder="e.g. work" maxlength="40" autocapitalize="none" spellcheck="false">
+        <button class="primary" type="submit">Go</button>
+      </div>
+      <div id="joinPreview"></div>
+    </form>
+  </nav>
+
+  <section id="chat">
+    <main id="log" aria-live="polite"></main>
+    <footer>
+      <button id="attach" title="Send files">+</button>
+      <input type="file" id="fileInput" multiple hidden>
+      <textarea id="text" rows="1" placeholder="Type a message…" title="Enter to send, Shift+Enter for a new line"></textarea>
+      <button class="primary" id="send">Send</button>
+    </footer>
+  </section>
+
+  <aside id="drawer">
+    <div class="drawer-head"><strong>Files in /<span id="drawerRoom"></span></strong><button id="closeDrawer">Close</button></div>
+    <h3>Link to this room</h3>
+    <div class="urls" id="drawerUrls"></div>
+    <p class="hint">Open this address in a browser on any device on the same Wi‑Fi/network. Tap to copy.</p>
+    <h3>All files</h3>
+    <div id="fileList"><p class="hint">Loading…</p></div>
+  </aside>
+</div>
+
+<div id="drop">Drop files to send</div>
+<div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const log = $('#log'), textEl = $('#text'), nameEl = $('#name'), drawer = $('#drawer'), roomsNav = $('#rooms');
+  const LONG_CHARS = 1500, LONG_LINES = 20;
+
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  };
+
+  // Same rules as the server: lowercase letters, digits and dashes.
+  const RESERVED = /^(api|events|files|index|con|prn|aux|nul|com\d|lpt\d)$/;
+  function cleanRoom(n) {
+    const s = String(n || '').toLowerCase().trim()
+      .replace(/[\s_.]+/g, '-').replace(/[^a-z0-9-]/g, '')
+      .replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 24).replace(/-$/, '');
+    return s && !RESERVED.test(s) ? s : '';
+  }
+
+  let clientId = store.get('ls.id');
+  if (!clientId) { clientId = Math.random().toString(36).slice(2, 10); store.set('ls.id', clientId); }
+
+  function defaultName() {
+    const ua = navigator.userAgent;
+    const n = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android'
+      : /Windows/.test(ua) ? 'Windows PC' : /Mac/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : 'Device';
+    return n + ' ' + Math.floor(10 + Math.random() * 90);
+  }
+  let myName = store.get('ls.name') || defaultName();
+  store.set('ls.name', myName);
+  nameEl.value = myName;
+  nameEl.addEventListener('change', () => {
+    myName = nameEl.value.trim().slice(0, 40) || defaultName();
+    nameEl.value = myName;
+    store.set('ls.name', myName);
+  });
+
+  // ---------- helpers ----------
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function fmtSize(b) {
+    if (b < 1024) return b + ' B';
+    const u = ['KB', 'MB', 'GB', 'TB']; let i = -1;
+    do { b /= 1024; i++; } while (b >= 1024 && i < u.length - 1);
+    return b.toFixed(b < 10 ? 1 : 0) + ' ' + u[i];
+  }
+  function fmtTime(t) {
+    const d = new Date(t), now = new Date();
+    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return d.toDateString() === now.toDateString() ? time : d.toLocaleDateString() + ' ' + time;
+  }
+  function fileUrl(name) { return '/files/' + encodeURIComponent(room) + '/' + encodeURIComponent(name); }
+  function ext(name) { const m = /\.([^.]+)$/.exec(name); return m ? m[1].toLowerCase() : ''; }
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1600);
+  }
+  function copyText(t) {
+    const done = () => toast('Copied');
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(t).then(done, () => fallback());
+    } else fallback();
+    function fallback() {
+      const ta = document.createElement('textarea');
+      ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) { toast('Copy failed'); }
+      ta.remove();
+    }
+  }
+  function saveText(t, from, time) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([t], { type: 'text/plain;charset=utf-8' }));
+    const d = new Date(time);
+    a.download = 'message-' + room + '-' + d.toISOString().slice(0, 16).replace(/[T:]/g, '-') + '.txt';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  function linkify(parent, text) {
+    const parts = text.split(/(https?:\/\/[^\s<>"]+)/g);
+    parts.forEach((p, i) => {
+      if (i % 2) { const a = el('a', null, p); a.href = p; a.target = '_blank'; a.rel = 'noopener'; parent.appendChild(a); }
+      else if (p) parent.appendChild(document.createTextNode(p));
+    });
+  }
+  function nearBottom() { return log.scrollHeight - log.scrollTop - log.clientHeight < 120; }
+  function scrollDown() { log.scrollTop = log.scrollHeight; }
+
+  // ---------- rooms & links ----------
+  let room = cleanRoom(location.pathname.slice(1)) || 'general';
+  let joinUrls = [];
+  function roomPath(r) { return r === 'general' ? '/' : '/' + r; }
+  function roomLinks() {
+    const bases = joinUrls.length ? joinUrls : [location.origin];
+    return bases.map((b) => b + (room === 'general' ? '' : '/' + room));
+  }
+  function renderUrls(container) {
+    container.innerHTML = '';
+    roomLinks().forEach((u) => {
+      const b = el('button', 'url', u.replace(/^http:\/\//, ''));
+      b.title = 'Copy ' + u;
+      b.addEventListener('click', () => copyText(u));
+      container.appendChild(b);
+    });
+  }
+  function refreshUrls() { document.querySelectorAll('[data-urls]').forEach(renderUrls); }
+  fetch('/api/info').then((r) => r.json()).then((info) => { joinUrls = info.urls || []; refreshUrls(); }).catch(() => {});
+
+  // unread tracking: how many events of each room this device has seen
+  let readCounts = {};
+  try { readCounts = JSON.parse(store.get('ls.read') || '{}') || {}; } catch (e) {}
+  let roomList = [];
+  function markRead() {
+    const r = roomList.find((x) => x.name === room);
+    if (r && !document.hidden) { readCounts[room] = r.count; store.set('ls.read', JSON.stringify(readCounts)); }
+  }
+
+  function renderRooms() {
+    const list = $('#roomList'); list.innerHTML = '';
+    let otherUnread = 0;
+    roomList.forEach((r) => {
+      if (readCounts[r.name] == null) readCounts[r.name] = r.count; // don't flag old history as new
+      const b = el('button', 'room' + (r.name === room ? ' active' : ''));
+      b.type = 'button';
+      b.appendChild(el('span', 'rn', r.name));
+      if (r.online) { const o = el('span', 'on', '● ' + r.online); o.title = r.online + ' online'; b.appendChild(o); }
+      const unread = r.name === room ? 0 : r.count - readCounts[r.name];
+      if (unread > 0) { b.appendChild(el('span', 'badge', unread > 99 ? '99+' : String(unread))); otherUnread += unread; }
+      b.addEventListener('click', () => { switchRoom(r.name); roomsNav.classList.remove('open'); });
+      list.appendChild(b);
+    });
+    store.set('ls.read', JSON.stringify(readCounts));
+    $('#roomsBtn').textContent = otherUnread ? 'Rooms (' + otherUnread + ')' : 'Rooms';
+  }
+
+  const joinInput = $('#joinInput');
+  joinInput.addEventListener('input', () => {
+    const c = cleanRoom(joinInput.value);
+    $('#joinPreview').textContent = joinInput.value.trim() ? (c ? 'Room address: …/' + c : 'Use letters and numbers') : '';
+  });
+  $('#joinForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const c = cleanRoom(joinInput.value);
+    if (!c) { toast('Use letters and numbers for the room name'); return; }
+    joinInput.value = ''; $('#joinPreview').textContent = '';
+    roomsNav.classList.remove('open');
+    switchRoom(c);
+  });
+  $('#roomsBtn').addEventListener('click', () => roomsNav.classList.add('open'));
+  $('#closeRooms').addEventListener('click', () => roomsNav.classList.remove('open'));
+
+  function switchRoom(r, fromHistory) {
+    if (r === room && es) return;
+    room = r;
+    store.set('ls.room', room);
+    if (!fromHistory && location.pathname !== roomPath(room)) history.pushState(null, '', roomPath(room));
+    connect();
+  }
+  window.addEventListener('popstate', () => switchRoom(cleanRoom(location.pathname.slice(1)) || 'general', true));
+
+  // ---------- rendering ----------
+  function showEmpty() {
+    const e = el('div', 'empty'); e.id = 'empty';
+    e.appendChild(el('h2', null, room === 'general' ? 'No messages yet' : 'Welcome to /' + room));
+    e.appendChild(el('div', null, 'Type a message below, or drag & drop files anywhere to share them. Other devices can join this room at:'));
+    const u = el('div', 'urls'); u.setAttribute('data-urls', ''); renderUrls(u);
+    e.appendChild(u);
+    log.appendChild(e);
+  }
+
+  function renderEvent(ev) {
+    const mine = ev.client === clientId;
+    const wrap = el('div', 'msg' + (mine ? ' mine' : ''));
+    const meta = el('div', 'meta', (mine ? 'You' : ev.from) + ' · ' + fmtTime(ev.time));
+    wrap.appendChild(meta);
+    const bubble = el('div', 'bubble');
+    const actions = el('div', 'actions');
+
+    if (ev.type === 'msg') {
+      const lines = ev.text.split('\n').length;
+      const long = ev.text.length > LONG_CHARS || lines > LONG_LINES;
+      linkify(bubble, ev.text);
+      if (long) {
+        meta.textContent += ' · ' + ev.text.length.toLocaleString() + ' characters';
+        bubble.classList.add('collapsed');
+        const t = el('button', null, 'Show all');
+        t.addEventListener('click', () => {
+          const c = bubble.classList.toggle('collapsed');
+          t.textContent = c ? 'Show all' : 'Show less';
+          if (c) wrap.scrollIntoView({ block: 'nearest' });
+        });
+        actions.appendChild(t);
+      }
+      const c = el('button', long ? null : 'quiet', 'Copy');
+      c.addEventListener('click', () => copyText(ev.text));
+      actions.appendChild(c);
+      if (long) {
+        const s = el('button', null, 'Save as .txt');
+        s.addEventListener('click', () => saveText(ev.text, ev.from, ev.time));
+        actions.appendChild(s);
+      }
+    } else {
+      const row = el('div', 'file');
+      row.appendChild(el('div', 'ficon', ext(ev.name).slice(0, 4) || 'file'));
+      const info = el('div');
+      info.appendChild(el('div', 'fn', ev.name));
+      info.appendChild(el('div', 'fs', fmtSize(ev.size)));
+      row.appendChild(info);
+      const dl = el('a', 'dl', 'Download');
+      dl.href = fileUrl(ev.name); dl.setAttribute('download', ev.name);
+      row.appendChild(dl);
+      bubble.appendChild(row);
+      const x = ext(ev.name);
+      if (/^(png|jpe?g|gif|webp|bmp|avif)$/.test(x)) {
+        const a = el('a'); a.href = fileUrl(ev.name) + '?view'; a.target = '_blank'; a.rel = 'noopener';
+        const img = el('img', 'preview'); img.loading = 'lazy'; img.alt = ev.name; img.src = fileUrl(ev.name) + '?view';
+        a.appendChild(img); bubble.appendChild(a);
+      } else if (/^(mp4|webm|mov)$/.test(x)) {
+        const v = el('video', 'preview'); v.controls = true; v.preload = 'metadata'; v.src = fileUrl(ev.name) + '?view';
+        bubble.appendChild(v);
+      } else if (/^(mp3|wav|ogg|m4a)$/.test(x)) {
+        const au = el('audio'); au.controls = true; au.preload = 'none'; au.src = fileUrl(ev.name) + '?view';
+        au.style.marginTop = '8px'; au.style.maxWidth = '100%';
+        bubble.appendChild(au);
+      }
+    }
+    wrap.appendChild(bubble);
+    if (actions.childNodes.length) wrap.appendChild(actions);
+    return wrap;
+  }
+
+  // ---------- older messages ----------
+  let firstId = null;
+  function olderButton(hasMore) {
+    const old = $('#older'); if (old) old.remove();
+    if (!hasMore) return;
+    const b = el('button', null, 'Load older messages'); b.id = 'older';
+    b.addEventListener('click', loadOlder);
+    log.insertBefore(b, log.firstChild);
+  }
+  function loadOlder() {
+    const forRoom = room;
+    fetch('/api/history?room=' + encodeURIComponent(room) + '&before=' + firstId)
+      .then((r) => r.json()).then((data) => {
+        if (forRoom !== room || !data.events.length) return;
+        const h = log.scrollHeight;
+        const anchor = $('#older') ? $('#older').nextSibling : log.firstChild;
+        const frag = document.createDocumentFragment();
+        data.events.forEach((ev) => { seen.add(ev.id); frag.appendChild(renderEvent(ev)); });
+        log.insertBefore(frag, anchor);
+        firstId = data.events[0].id;
+        olderButton(data.hasMore);
+        log.scrollTop += log.scrollHeight - h;
+      }).catch(() => toast('Could not load older messages'));
+  }
+
+  // ---------- live events ----------
+  let es = null, seen = new Set(), unread = 0;
+  function setStatus(on, text) { $('#dot').classList.toggle('on', on); $('#online').textContent = text; }
+  function updateTitle() { document.title = (unread ? '(' + unread + ') ' : '') + '/' + room + ' · LocalShare'; }
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) { unread = 0; updateTitle(); markRead(); renderRooms(); }
+  });
+
+  function connect() {
+    if (es) es.close();
+    seen = new Set(); unread = 0; firstId = null;
+    log.innerHTML = '';
+    $('#roomName').textContent = room;
+    $('#drawerRoom').textContent = room;
+    textEl.placeholder = 'Message /' + room + '…';
+    updateTitle(); refreshUrls(); renderUrls($('#drawerUrls'));
+    if (drawer.classList.contains('open')) loadFiles();
+    renderRooms();
+
+    const forRoom = room;
+    es = new EventSource('/events?room=' + encodeURIComponent(room) + '&id=' + encodeURIComponent(clientId));
+    es.onopen = () => setStatus(true, 'Connected');
+    es.onerror = () => setStatus(false, 'Reconnecting…');
+    es.onmessage = (e) => {
+      if (forRoom !== room) return;
+      let ev; try { ev = JSON.parse(e.data); } catch (_) { return; }
+
+      if (ev.type === 'rooms') {
+        roomList = ev.rooms;
+        const here = roomList.find((r) => r.name === room);
+        const n = here ? here.online : 0;
+        setStatus(true, n + (n === 1 ? ' device' : ' devices') + ' here');
+        markRead(); renderRooms();
+        return;
+      }
+      if (ev.type === 'history') { // full (re)load of the room
+        seen = new Set(); log.innerHTML = '';
+        if (!ev.events.length) showEmpty();
+        const frag = document.createDocumentFragment();
+        ev.events.forEach((x) => { seen.add(x.id); frag.appendChild(renderEvent(x)); });
+        log.appendChild(frag);
+        firstId = ev.events.length ? ev.events[0].id : null;
+        olderButton(ev.hasMore);
+        scrollDown();
+        return;
+      }
+      if (seen.has(ev.id)) return;
+      seen.add(ev.id);
+      const empty = $('#empty'); if (empty) empty.remove();
+      const stick = nearBottom() || ev.client === clientId;
+      log.appendChild(renderEvent(ev));
+      if (stick) scrollDown();
+      if (document.hidden && ev.client !== clientId) { unread++; updateTitle(); }
+      if (ev.type === 'file' && drawer.classList.contains('open')) loadFiles();
+    };
+  }
+
+  // ---------- sending text ----------
+  function autosize() { textEl.style.height = 'auto'; textEl.style.height = Math.min(textEl.scrollHeight, window.innerHeight * 0.4) + 'px'; }
+  textEl.addEventListener('input', autosize);
+  textEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendText(); }
+  });
+  $('#send').addEventListener('click', sendText);
+
+  function sendText() {
+    const text = textEl.value;
+    if (!text.trim()) return;
+    textEl.value = ''; autosize();
+    fetch('/api/message', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ room, from: myName, client: clientId, text }),
+    }).then((r) => { if (!r.ok) throw new Error(); }).catch(() => {
+      if (!textEl.value) { textEl.value = text; autosize(); }
+      toast('Message not sent — check connection');
+    });
+    textEl.focus();
+  }
+
+  // ---------- sending files ----------
+  const queue = []; let uploading = false;
+  function uploadFiles(files) {
+    for (const f of files) queue.push({ file: f, room });
+    if (!uploading) next();
+  }
+  function next() {
+    const job = queue.shift();
+    if (!job) { uploading = false; return; }
+    uploading = true;
+    const f = job.file;
+
+    const wrap = el('div', 'msg mine');
+    wrap.appendChild(el('div', 'meta', 'Sending to /' + job.room + '…'));
+    const bubble = el('div', 'bubble');
+    const row = el('div', 'file');
+    row.appendChild(el('div', 'ficon', ext(f.name).slice(0, 4) || 'file'));
+    const info = el('div');
+    info.appendChild(el('div', 'fn', f.name));
+    const sz = el('div', 'fs', '0% of ' + fmtSize(f.size));
+    info.appendChild(sz);
+    row.appendChild(info);
+    bubble.appendChild(row);
+    const bar = el('div', 'progress'); const fill = el('div'); bar.appendChild(fill); bubble.appendChild(bar);
+    wrap.appendChild(bubble);
+    if (job.room === room) { const empty = $('#empty'); if (empty) empty.remove(); log.appendChild(wrap); scrollDown(); }
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload');
+    xhr.setRequestHeader('X-Filename', encodeURIComponent(f.name || 'file'));
+    xhr.setRequestHeader('X-From', encodeURIComponent(myName));
+    xhr.setRequestHeader('X-Room', encodeURIComponent(job.room));
+    xhr.setRequestHeader('X-Client', clientId);
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable) return;
+      const pct = Math.round((e.loaded / e.total) * 100);
+      fill.style.width = pct + '%';
+      sz.textContent = pct + '% of ' + fmtSize(f.size);
+    };
+    const fail = () => {
+      wrap.querySelector('.meta').textContent = 'Failed';
+      sz.textContent = 'Upload failed'; sz.classList.add('err');
+      bar.remove();
+      setTimeout(() => wrap.remove(), 6000);
+      toast('Upload of ' + f.name + ' failed');
+      next();
+    };
+    xhr.onload = () => {
+      if (xhr.status !== 200) return fail();
+      wrap.remove(); // the real message arrives through the live feed
+      next();
+    };
+    xhr.onerror = fail;
+    xhr.send(f);
+  }
+
+  $('#attach').addEventListener('click', () => $('#fileInput').click());
+  $('#fileInput').addEventListener('change', (e) => { uploadFiles(e.target.files); e.target.value = ''; });
+
+  textEl.addEventListener('paste', (e) => {
+    const files = e.clipboardData && e.clipboardData.files;
+    if (files && files.length) { e.preventDefault(); uploadFiles(files); }
+  });
+
+  let dragDepth = 0;
+  const hasFiles = (e) => e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types, 'Files') >= 0;
+  window.addEventListener('dragenter', (e) => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth++; $('#drop').classList.add('show'); });
+  window.addEventListener('dragover', (e) => { if (hasFiles(e)) e.preventDefault(); });
+  window.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) $('#drop').classList.remove('show'); });
+  window.addEventListener('drop', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault(); dragDepth = 0; $('#drop').classList.remove('show');
+    uploadFiles(e.dataTransfer.files);
+  });
+
+  // ---------- files drawer ----------
+  function loadFiles() {
+    const forRoom = room;
+    fetch('/api/files?room=' + encodeURIComponent(room)).then((r) => r.json()).then((files) => {
+      if (forRoom !== room) return;
+      const list = $('#fileList'); list.innerHTML = '';
+      if (!files.length) { list.appendChild(el('p', 'hint', 'No files in this room yet.')); return; }
+      files.forEach((f) => {
+        const a = el('a', 'frow'); a.href = fileUrl(f.name); a.setAttribute('download', f.name); a.title = f.name;
+        a.appendChild(el('div', 'ficon', ext(f.name).slice(0, 4) || 'file'));
+        a.appendChild(el('span', 'fn', f.name));
+        a.appendChild(el('span', 'fs', fmtSize(f.size)));
+        list.appendChild(a);
+      });
+    }).catch(() => { $('#fileList').innerHTML = '<p class="hint">Could not load files.</p>'; });
+  }
+  $('#filesBtn').addEventListener('click', () => {
+    const open = drawer.classList.toggle('open');
+    if (open) loadFiles();
+  });
+  $('#closeDrawer').addEventListener('click', () => drawer.classList.remove('open'));
+
+  // start: honour the address bar (/work), otherwise the last room used
+  if (location.pathname === '/' && store.get('ls.room') && cleanRoom(store.get('ls.room'))) {
+    room = cleanRoom(store.get('ls.room'));
+    history.replaceState(null, '', roomPath(room));
+  } else if (location.pathname !== roomPath(room)) {
+    history.replaceState(null, '', roomPath(room));
+  }
+  connect();
+})();
+</script>
+</body>
+</html>

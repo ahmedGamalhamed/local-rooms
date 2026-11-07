@@ -1,0 +1,9 @@
+{
+  "main": "server.js",
+  "output": "dist/sea-prep.blob",
+  "disableExperimentalSEAWarning": true,
+  "useCodeCache": false,
+  "assets": {
+    "index.html": "index.html"
+  }
+}

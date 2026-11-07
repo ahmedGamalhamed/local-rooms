@@ -1,0 +1,8 @@
+# build output (rebuild with build.ps1)
+dist/
+*.blob
+
+# runtime data: shared files and chat history
+LocalShare Files/
+
+node_modules/
