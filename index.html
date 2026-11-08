@@ -193,6 +193,11 @@ audio.media{background:none;height:40px;max-height:none}
 .gallery[data-n="3"] .tile:first-child{grid-column:span 2;aspect-ratio:2/1}
 .tile .more{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.5);color:#fff;font-size:24px;font-weight:700}
 .gcap{font-size:12px;color:var(--muted);padding:0 4px}
+.gcap{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dlall{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--muted);transition:color .15s,background-color .15s}
+.dlall:hover{color:var(--text);background:var(--hover)}
+.dlall:disabled{opacity:.7;cursor:progress}
+.fitem{display:flex;flex-direction:column;gap:4px;align-items:inherit;max-width:100%}
 
 /* composer */
 footer{padding:10px 20px calc(14px + env(safe-area-inset-bottom));flex:none}
@@ -860,21 +865,27 @@ dialog#secDlg::backdrop{background:var(--scrim)}
     if (day !== ctx.day) {
       const d = el('div', 'daysep', fmtDay(ev.time)); d.dataset.day = day;
       parent.appendChild(d);
-      ctx.day = day; ctx.last = null; ctx.gallery = null;
+      ctx.day = day; ctx.last = null; ctx.gallery = null; ctx.files = null;
     }
     const prev = ctx.last;
     const same = !!prev && prev.client === ev.client && prev.from === ev.from && ev.time - prev.time < GROUP_MS;
     ctx.last = ev;
     if (isImage(ev) && same && ctx.gallery) { ctx.gallery.add(ev); return; }
+    // Files (not images) sent one after another by the same person also form one group.
+    const plainFile = ev.type === 'file' && !isImage(ev);
+    if (plainFile && same && ctx.files) { ctx.files.add(ev); return; }
 
     const shell = msgShell(ev, same);
+    ctx.gallery = null; ctx.files = null;
     if (isImage(ev)) {
       ctx.gallery = makeGallery();
       ctx.gallery.add(ev);
       shell.body.appendChild(ctx.gallery.el);
       shell.body.appendChild(ctx.gallery.cap);
+    } else if (plainFile) {
+      ctx.files = makeFileGroup(shell);
+      ctx.files.add(ev);
     } else {
-      ctx.gallery = null;
       fillContent(shell, ev);
     }
     parent.appendChild(shell.el);
@@ -1082,10 +1093,166 @@ dialog#secDlg::backdrop{background:var(--scrim)}
       }).catch(() => { list.innerHTML = ''; list.appendChild(el('p', 'hint', 'Could not load the file list.')); });
   }
 
+  // ---------- file groups and "Download all" ----------
+  // Files sent one after another by the same person share one message, and get a
+  // Download all button (as do image albums) once there are two or more.
+  function makeFileGroup(shell) {
+    const g = { items: [] };
+    const cap = el('div', 'gcap'), capText = cap.appendChild(el('span'));
+    cap.appendChild(downloadAllButton(g.items, 'files')).hidden = false; // the caption shows from 2 files
+    cap.hidden = true;
+    shell.body.appendChild(cap);
+    g.add = (ev) => {
+      g.items.push(ev);
+      const item = el('div', 'fitem');
+      shell.body.insertBefore(item, cap);
+      fillContent({ el: shell.el, body: item }, ev);
+      const n = g.items.length;
+      cap.hidden = n < 2;
+      capText.textContent = n + ' files · ' + fmtSize(g.items.reduce((s, e) => s + (e.size || 0), 0));
+    };
+    return g;
+  }
+  function downloadAllButton(items, kind) {
+    const b = el('button', 'dlall'); b.type = 'button'; b.hidden = true;
+    b.title = 'Download all of these as one .zip';
+    b.appendChild(icon('download', 'sm'));
+    const label = b.appendChild(document.createTextNode('Download all'));
+    b.addEventListener('click', () => downloadAll(items.slice(), kind, b, label));
+    return b;
+  }
+  // Fetches each file in turn, then saves them together as one .zip made in this browser.
+  async function downloadAll(list, kind, btn, label) {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    const entries = [], used = new Set();
+    let failed = 0;
+    try {
+      for (let i = 0; i < list.length; i++) {
+        label.textContent = 'Getting ' + (i + 1) + ' of ' + list.length + '…';
+        try {
+          const r = await fetch(itemUrl(list[i]));
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          entries.push({ name: uniqueEntry(used, list[i].name), blob: await r.blob(), time: list[i].time });
+        } catch (e) { failed++; }
+      }
+      if (!entries.length) { toast('Could not download any of them'); return; }
+      label.textContent = 'Zipping…';
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(await zipBlob(entries));
+      a.download = kind + '-' + room + '-' + stamp(list[0].time) + '.zip';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+      if (failed) toast(failed + ' of ' + list.length + ' could not be downloaded and were left out');
+    } catch (e) {
+      toast('Could not make the .zip');
+    } finally {
+      label.textContent = 'Download all';
+      btn.disabled = false;
+    }
+  }
+  function stamp(t) {
+    const d = new Date(t), p = (n) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes());
+  }
+  // Two files called image.png become image.png and image (1).png inside the zip.
+  function uniqueEntry(used, name) {
+    const dot = name.lastIndexOf('.'), base = dot > 0 ? name.slice(0, dot) : name, x = dot > 0 ? name.slice(dot) : '';
+    let n = name;
+    for (let i = 1; used.has(n.toLowerCase()); i++) n = base + ' (' + i + ')' + x;
+    used.add(n.toLowerCase());
+    return n;
+  }
+  // A .zip of [{ name, blob, time }] as a Blob. Files are stored as they are (photos and videos
+  // don't shrink anyway), and the Blob only refers to them, so nothing is copied in memory.
+  // Zip64 fields are added when a file or the zip passes 4 GB.
+  async function zipBlob(entries) {
+    const enc = new TextEncoder(), M = 0xffffffff, parts = [], central = [], STEP = 4 << 20;
+    let offset = 0;
+    for (const e of entries) {
+      let crc = 0;
+      for (let at = 0; at < e.blob.size; at += STEP) crc = crc32(new Uint8Array(await e.blob.slice(at, at + STEP).arrayBuffer()), crc);
+      const name = enc.encode(e.name), size = e.blob.size, big = size >= M, { time, date } = dosDateTime(e.time);
+      const lh = new Uint8Array(30 + name.length + (big ? 20 : 0)), v = new DataView(lh.buffer);
+      v.setUint32(0, 0x04034b50, true); v.setUint16(4, big ? 45 : 20, true);
+      v.setUint16(6, 0x0800, true); // UTF-8 names; method 0 = stored
+      v.setUint16(10, time, true); v.setUint16(12, date, true); v.setUint32(14, crc, true);
+      v.setUint32(18, big ? M : size, true); v.setUint32(22, big ? M : size, true);
+      v.setUint16(26, name.length, true); v.setUint16(28, big ? 20 : 0, true);
+      lh.set(name, 30);
+      if (big) {
+        v.setUint16(30 + name.length, 1, true); v.setUint16(32 + name.length, 16, true);
+        v.setBigUint64(34 + name.length, BigInt(size), true); v.setBigUint64(42 + name.length, BigInt(size), true);
+      }
+      central.push({ name, time, date, crc, size, start: offset });
+      parts.push(lh, e.blob);
+      offset += lh.length + size;
+    }
+    const cdStart = offset;
+    for (const c of central) {
+      const z = [];
+      if (c.size >= M) z.push(c.size, c.size);
+      if (c.start >= M) z.push(c.start);
+      const xl = z.length ? 4 + z.length * 8 : 0, nl = c.name.length;
+      const ch = new Uint8Array(46 + nl + xl), v = new DataView(ch.buffer);
+      v.setUint32(0, 0x02014b50, true); v.setUint16(4, 45, true); v.setUint16(6, z.length ? 45 : 20, true);
+      v.setUint16(8, 0x0800, true);
+      v.setUint16(12, c.time, true); v.setUint16(14, c.date, true); v.setUint32(16, c.crc, true);
+      v.setUint32(20, c.size >= M ? M : c.size, true); v.setUint32(24, c.size >= M ? M : c.size, true);
+      v.setUint16(28, nl, true); v.setUint16(30, xl, true);
+      v.setUint32(42, c.start >= M ? M : c.start, true);
+      ch.set(c.name, 46);
+      if (xl) {
+        v.setUint16(46 + nl, 1, true); v.setUint16(48 + nl, z.length * 8, true);
+        z.forEach((n, i) => v.setBigUint64(50 + nl + i * 8, BigInt(n), true));
+      }
+      parts.push(ch);
+      offset += ch.length;
+    }
+    const cdSize = offset - cdStart, n = central.length;
+    if (n >= 0xffff || cdStart >= M || cdSize >= M) {
+      const z = new Uint8Array(76), v = new DataView(z.buffer);
+      v.setUint32(0, 0x06064b50, true); v.setBigUint64(4, 44n, true);
+      v.setUint16(12, 45, true); v.setUint16(14, 45, true);
+      v.setBigUint64(24, BigInt(n), true); v.setBigUint64(32, BigInt(n), true);
+      v.setBigUint64(40, BigInt(cdSize), true); v.setBigUint64(48, BigInt(cdStart), true);
+      v.setUint32(56, 0x07064b50, true); v.setBigUint64(64, BigInt(offset), true); v.setUint32(72, 1, true);
+      parts.push(z);
+    }
+    const end = new Uint8Array(22), v = new DataView(end.buffer);
+    v.setUint32(0, 0x06054b50, true);
+    v.setUint16(8, Math.min(n, 0xffff), true); v.setUint16(10, Math.min(n, 0xffff), true);
+    v.setUint32(12, Math.min(cdSize, M), true); v.setUint32(16, Math.min(cdStart, M), true);
+    parts.push(end);
+    return new Blob(parts, { type: 'application/zip' });
+  }
+
+  const itemUrl = (ev) => fileUrl(ev.name);
+  const CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+    return t;
+  })();
+  function crc32(buf, crc) {
+    crc = ~crc;
+    for (let i = 0; i < buf.length; i++) crc = CRC_TABLE[(crc ^ buf[i]) & 255] ^ (crc >>> 8);
+    return ~crc >>> 0;
+  }
+  function dosDateTime(ms) {
+    const d = new Date(ms);
+    const y = Math.max(1980, Math.min(2107, d.getFullYear()));
+    return {
+      time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1),
+      date: ((y - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate(),
+    };
+  }
+
   // ---------- image galleries ----------
   const MAX_TILES = 4;
   function makeGallery() {
     const g = { items: [], el: el('div', 'gallery'), cap: el('div', 'gcap') };
+    const capText = g.cap.appendChild(el('span'));
+    const all = g.cap.appendChild(downloadAllButton(g.items, 'images'));
     g.add = (ev) => {
       const i = g.items.push(ev) - 1;
       const n = g.items.length;
@@ -1106,7 +1273,8 @@ dialog#secDlg::backdrop{background:var(--scrim)}
         last.setAttribute('aria-label', 'View all ' + n + ' images');
       }
       const total = g.items.reduce((s, e) => s + (e.size || 0), 0);
-      g.cap.textContent = n === 1 ? ev.name + ' · ' + fmtSize(ev.size) : n + ' images · ' + fmtSize(total);
+      capText.textContent = n === 1 ? ev.name + ' · ' + fmtSize(ev.size) : n + ' images · ' + fmtSize(total);
+      all.hidden = n < 2;
     };
     return g;
   }

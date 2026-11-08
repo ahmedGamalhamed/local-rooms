@@ -7,7 +7,8 @@ Send messages and files between devices on your local network (Wi‑Fi/LAN).
 
 1. On the host computer, double-click **`dist\LocalShare.exe`**. A console window shows the address, and your browser opens the chat.
 2. On any other device on the same network, open that address, for example `http://192.168.0.210:8080`.
-3. Type messages, or drag and drop / paste / use the paperclip to send files and folders. Images, video and audio preview inline.
+3. Type messages, or drag and drop / paste / use the paperclip to send files and folders. Images, video and audio preview inline. Pasted files wait above the message box until you press Send.
+4. Several images or files sent one after another show as one album or group with **Download all**, which saves them as one .zip. This works in remote rooms too.
 
 ## Passcode
 
