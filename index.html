@@ -123,6 +123,15 @@ header{display:flex;align-items:center;gap:10px;height:64px;padding:0 12px 0 20p
 .mine .bubble{background:var(--mine);color:var(--mine-text);border-color:transparent}
 .mine:not(.cont) .bubble{border-top-left-radius:var(--radius);border-top-right-radius:6px}
 .bubble a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+.bubble code{font-family:ui-monospace,"Cascadia Code",Consolas,monospace;font-size:.9em;background:rgba(127,127,127,.18);padding:1px 5px;border-radius:5px}
+.msg.hascode{max-width:min(92%,900px)}
+.msg.hascode .bubble{width:100%}
+.codeblock{white-space:normal;margin:6px 0;border:1px solid rgba(127,127,127,.28);border-radius:10px;background:rgba(127,127,127,.1);overflow:hidden}
+.codehead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3px 4px 3px 12px;font-size:11.5px;opacity:.8;border-bottom:1px solid rgba(127,127,127,.28)}
+.codehead button{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 8px;border:0;border-radius:6px;background:none;color:inherit;font-size:12px;font-weight:500}
+.codehead button:hover{background:rgba(127,127,127,.18)}
+.codeblock pre{margin:0;padding:10px 12px;overflow-x:auto;white-space:pre;tab-size:4;font:12.5px/1.55 ui-monospace,"Cascadia Code",Consolas,monospace}
+.codeblock pre code{background:none;padding:0;font-size:inherit}
 .bubble.collapsed{max-height:20em;overflow:hidden;-webkit-mask-image:linear-gradient(#000 70%,transparent);mask-image:linear-gradient(#000 70%,transparent)}
 .actions{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
 .actions button{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--muted);transition:color .15s,background-color .15s,opacity .15s}
@@ -199,6 +208,10 @@ footer{padding:10px 20px calc(14px + env(safe-area-inset-bottom));flex:none}
 #drawer.open{display:block}
 .drawer-head{display:flex;align-items:center;justify-content:space-between;height:64px;position:sticky;top:0;background:var(--surface);z-index:1}
 .drawer-head strong{font-size:16px}
+.qr{margin-top:10px;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.qr[hidden]{display:none}
+.qr svg{width:168px;height:168px;border-radius:10px;border:1px solid var(--border)}
+.qr .hint{margin:0;word-break:break-all}
 #drawer h3{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:14px 0 8px}
 .frow{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;text-decoration:none;color:var(--text);transition:background-color .15s}
 .frow:hover{background:var(--hover)}
@@ -358,6 +371,7 @@ dialog#secDlg::backdrop{background:var(--scrim)}
     <h3>Link to this room</h3>
     <div class="urls" id="drawerUrls"></div>
     <p class="hint">Open this address on any device on the same Wi‑Fi. Tap to copy.</p>
+    <div class="qr" id="qr" hidden></div>
     <h3>All files</h3>
     <div id="fileList"><p class="hint">Loading…</p></div>
   </aside>
@@ -529,6 +543,39 @@ dialog#secDlg::backdrop{background:var(--scrim)}
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
+  // Message text: ```fenced blocks``` become code boxes with their own Copy button,
+  // `backticks` become inline code, and links stay clickable.
+  const FENCE_RE = /(^|\n)```([^\n`]*)\n([\s\S]*?)(?:\n```[ \t]*(?=\n|$)|$)/g;
+  function hasCode(text) { FENCE_RE.lastIndex = 0; return FENCE_RE.test(text); }
+  function renderText(parent, text) {
+    let at = 0, m;
+    FENCE_RE.lastIndex = 0;
+    while ((m = FENCE_RE.exec(text))) {
+      inlineCode(parent, text.slice(at, m.index));
+      parent.appendChild(codeBlock(m[3], m[2].trim()));
+      at = FENCE_RE.lastIndex;
+      if (text[at] === '\n') at++; // the block already ends the line
+    }
+    inlineCode(parent, text.slice(at));
+  }
+  function inlineCode(parent, text) {
+    text.split(/`([^`\n]+)`/g).forEach((p, i) => {
+      if (i % 2) parent.appendChild(el('code', null, p));
+      else if (p) linkify(parent, p);
+    });
+  }
+  function codeBlock(code, lang) {
+    const box = el('div', 'codeblock');
+    const head = el('div', 'codehead');
+    head.appendChild(el('span', null, lang || 'code'));
+    const b = el('button', null); b.type = 'button';
+    b.appendChild(icon('copy', 'sm')); b.appendChild(document.createTextNode('Copy'));
+    b.addEventListener('click', () => copyText(code));
+    head.appendChild(b);
+    box.appendChild(head);
+    const pre = el('pre'); pre.appendChild(el('code', null, code)); box.appendChild(pre);
+    return box;
+  }
   function linkify(parent, text) {
     const parts = text.split(/(https?:\/\/[^\s<>"]+)/g);
     parts.forEach((p, i) => {
@@ -558,13 +605,171 @@ dialog#secDlg::backdrop{background:var(--scrim)}
       b.appendChild(el('span', null, u.replace(/^http:\/\//, '')));
       b.appendChild(icon('copy', 'sm'));
       b.title = 'Copy ' + u;
-      b.addEventListener('click', () => copyText(u));
+      b.addEventListener('click', () => { copyText(u); if (container.id === 'drawerUrls') renderQr(u); });
       container.appendChild(b);
     });
   }
   function refreshUrls() { document.querySelectorAll('[data-urls]').forEach(renderUrls); }
+
+  // ---------- QR code (byte mode, error correction M, versions 1–15) ----------
+  // Made here rather than by a library or web service, since LocalShare often runs without internet.
+  const QR_ECC = [0, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24]; // codewords per block
+  const QR_BLOCKS = [0, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5, 5, 8, 9, 9, 10];
+  function qrRawModules(v) {
+    let n = (16 * v + 128) * v + 64;
+    if (v >= 2) { const a = Math.floor(v / 7) + 2; n -= (25 * a - 10) * a - 55; if (v >= 7) n -= 36; }
+    return n;
+  }
+  function qrMul(x, y) {
+    let z = 0;
+    for (let i = 7; i >= 0; i--) { z = (z << 1) ^ ((z >>> 7) * 0x11d); z ^= ((y >>> i) & 1) * x; }
+    return z;
+  }
+  function qrEcc(data, degree) {
+    const div = new Array(degree).fill(0); div[degree - 1] = 1;
+    for (let i = 0, root = 1; i < degree; i++, root = qrMul(root, 2)) {
+      for (let j = 0; j < degree; j++) { div[j] = qrMul(div[j], root); if (j + 1 < degree) div[j] ^= div[j + 1]; }
+    }
+    const rem = new Array(degree).fill(0);
+    for (const b of data) {
+      const f = b ^ rem.shift(); rem.push(0);
+      div.forEach((c, i) => { rem[i] ^= qrMul(c, f); });
+    }
+    return rem;
+  }
+  function qrMatrix(text) {
+    const bytes = new TextEncoder().encode(text);
+    let v = 1, cap;
+    for (; v <= 15; v++) {
+      cap = Math.floor(qrRawModules(v) / 8) - QR_ECC[v] * QR_BLOCKS[v];
+      if (4 + (v < 10 ? 8 : 16) + bytes.length * 8 <= cap * 8) break;
+    }
+    if (v > 15) return null;
+    // data bits: mode, length, bytes, terminator, then pad bytes
+    const bits = [];
+    const put = (val, n) => { for (let i = n - 1; i >= 0; i--) bits.push((val >>> i) & 1); };
+    put(4, 4); put(bytes.length, v < 10 ? 8 : 16); bytes.forEach((b) => put(b, 8));
+    put(0, Math.min(4, cap * 8 - bits.length)); put(0, (8 - bits.length % 8) % 8);
+    for (let p = 0xec; bits.length < cap * 8; p ^= 0xec ^ 0x11) put(p, 8);
+    const data = [];
+    for (let i = 0; i < bits.length; i += 8) data.push(parseInt(bits.slice(i, i + 8).join(''), 2));
+    // split into blocks, add error correction, interleave
+    const nb = QR_BLOCKS[v], ecl = QR_ECC[v], raw = Math.floor(qrRawModules(v) / 8);
+    const nShort = nb - raw % nb, shortLen = Math.floor(raw / nb);
+    const blocks = [];
+    for (let i = 0, k = 0; i < nb; i++) {
+      const d = data.slice(k, k + shortLen - ecl + (i < nShort ? 0 : 1)); k += d.length;
+      const e = qrEcc(d, ecl);
+      if (i < nShort) d.push(0);
+      blocks.push(d.concat(e));
+    }
+    const words = [];
+    for (let i = 0; i < blocks[0].length; i++) blocks.forEach((b, j) => { if (i !== shortLen - ecl || j >= nShort) words.push(b[i]); });
+
+    const size = v * 4 + 17;
+    const mod = [], fn = [];
+    for (let y = 0; y < size; y++) { mod.push(new Array(size).fill(false)); fn.push(new Array(size).fill(false)); }
+    const set = (x, y, dark) => { mod[y][x] = dark; fn[y][x] = true; };
+    for (let i = 0; i < size; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
+    [[3, 3], [size - 4, 3], [3, size - 4]].forEach(([cx, cy]) => {
+      for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+        const x = cx + dx, y = cy + dy, d = Math.max(Math.abs(dx), Math.abs(dy));
+        if (x >= 0 && x < size && y >= 0 && y < size) set(x, y, d !== 2 && d !== 4);
+      }
+    });
+    if (v >= 2) {
+      const na = Math.floor(v / 7) + 2, step = Math.ceil((v * 4 + 4) / (na * 2 - 2)) * 2, pos = [6];
+      for (let p = size - 7; pos.length < na; p -= step) pos.splice(1, 0, p);
+      pos.forEach((ay, i) => pos.forEach((ax, j) => {
+        if ((i === 0 && j === 0) || (i === 0 && j === na - 1) || (i === na - 1 && j === 0)) return;
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) set(ax + dx, ay + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+      }));
+    }
+    const drawFormat = (mask) => {
+      const d = mask; // error correction M is 00
+      let r = d;
+      for (let i = 0; i < 10; i++) r = (r << 1) ^ ((r >>> 9) * 0x537);
+      const b = ((d << 10) | r) ^ 0x5412, bit = (i) => ((b >>> i) & 1) === 1;
+      for (let i = 0; i <= 5; i++) set(8, i, bit(i));
+      set(8, 7, bit(6)); set(8, 8, bit(7)); set(7, 8, bit(8));
+      for (let i = 9; i < 15; i++) set(14 - i, 8, bit(i));
+      for (let i = 0; i < 8; i++) set(size - 1 - i, 8, bit(i));
+      for (let i = 8; i < 15; i++) set(8, size - 15 + i, bit(i));
+      set(8, size - 8, true);
+    };
+    drawFormat(0); // reserve the format areas
+    if (v >= 7) {
+      let r = v;
+      for (let i = 0; i < 12; i++) r = (r << 1) ^ ((r >>> 11) * 0x1f25);
+      const b = (v << 12) | r;
+      for (let i = 0; i < 18; i++) {
+        const dark = ((b >>> i) & 1) === 1, a = size - 11 + i % 3, c = Math.floor(i / 3);
+        set(a, c, dark); set(c, a, dark);
+      }
+    }
+    // data in the zigzag order
+    let n = 0;
+    for (let right = size - 1; right >= 1; right -= 2) {
+      if (right === 6) right = 5;
+      for (let vert = 0; vert < size; vert++) for (let j = 0; j < 2; j++) {
+        const x = right - j, y = ((right + 1) & 2) === 0 ? size - 1 - vert : vert;
+        if (!fn[y][x] && n < words.length * 8) { mod[y][x] = ((words[n >>> 3] >>> (7 - (n & 7))) & 1) === 1; n++; }
+      }
+    }
+    const MASKS = [(x, y) => (x + y) % 2 === 0, (x, y) => y % 2 === 0, (x) => x % 3 === 0, (x, y) => (x + y) % 3 === 0,
+      (x, y) => (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0, (x, y) => (x * y) % 2 + (x * y) % 3 === 0,
+      (x, y) => ((x * y) % 2 + (x * y) % 3) % 2 === 0, (x, y) => (((x + y) % 2) + (x * y) % 3) % 2 === 0];
+    const applyMask = (m) => { for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (!fn[y][x] && MASKS[m](x, y)) mod[y][x] = !mod[y][x]; };
+    // Pick the mask with the fewest long runs, 2×2 blocks and dark/light imbalance (any mask scans).
+    const penalty = () => {
+      let p = 0, dark = 0;
+      for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+        if (mod[y][x]) dark++;
+        if (x < size - 1 && y < size - 1 && mod[y][x] === mod[y][x + 1] && mod[y][x] === mod[y + 1][x] && mod[y][x] === mod[y + 1][x + 1]) p += 3;
+      }
+      for (let y = 0; y < size; y++) for (const horiz of [true, false]) {
+        let run = 1;
+        for (let x = 1; x <= size; x++) {
+          const same = x < size && (horiz ? mod[y][x] === mod[y][x - 1] : mod[x][y] === mod[x - 1][y]);
+          if (same) run++; else { if (run >= 5) p += run - 2; run = 1; }
+        }
+      }
+      return p + Math.floor(Math.abs(dark * 20 - size * size * 10) / (size * size)) * 10;
+    };
+    let best = 0, bestP = Infinity;
+    for (let m = 0; m < 8; m++) {
+      applyMask(m); drawFormat(m);
+      const p = penalty(); if (p < bestP) { bestP = p; best = m; }
+      applyMask(m);
+    }
+    applyMask(best); drawFormat(best);
+    return mod;
+  }
+  function qrSvg(text) {
+    const m = qrMatrix(text);
+    if (!m) return null;
+    const q = 4, s = m.length + q * 2;
+    let d = '';
+    m.forEach((row, y) => row.forEach((dark, x) => { if (dark) d += 'M' + (x + q) + ' ' + (y + q) + 'h1v1h-1z'; }));
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + s + ' ' + s);
+    svg.setAttribute('shape-rendering', 'crispEdges');
+    svg.innerHTML = '<rect width="' + s + '" height="' + s + '" fill="#fff"/><path fill="#000" d="' + d + '"/>';
+    return svg;
+  }
+  // Shows the first room link; tapping another link in the Files panel switches the QR to it.
+  function renderQr(pick) {
+    const box = $('#qr'); box.innerHTML = '';
+    const u = pick || (joinUrls.length ? roomLinks()[0] : '');
+    const svg = u && qrSvg(u);
+    box.hidden = !svg;
+    if (!svg) return;
+    svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'QR code for ' + u);
+    box.appendChild(svg);
+    box.appendChild(el('p', 'hint', 'Scan with a phone camera to open ' + u.replace(/^https?:\/\//, '')));
+  }
   function loadInfo() {
-    fetch('/api/info').then((r) => r.json()).then((info) => { joinUrls = info.urls || []; refreshUrls(); renderUrls($('#drawerUrls')); }).catch(() => {});
+    fetch('/api/info').then((r) => r.json()).then((info) => { joinUrls = info.urls || []; refreshUrls(); renderUrls($('#drawerUrls')); renderQr(); }).catch(() => {});
   }
 
   // unread tracking: how many events of each room this device has seen
@@ -700,7 +905,8 @@ dialog#secDlg::backdrop{background:var(--scrim)}
       const bubble = el('div', 'bubble');
       const lines = ev.text.split('\n').length;
       const long = ev.text.length > LONG_CHARS || lines > LONG_LINES;
-      linkify(bubble, ev.text);
+      renderText(bubble, ev.text);
+      if (hasCode(ev.text)) shell.el.classList.add('hascode');
       body.appendChild(bubble);
       if (long) {
         bubble.classList.add('collapsed');
@@ -760,6 +966,15 @@ dialog#secDlg::backdrop{background:var(--scrim)}
       z.appendChild(icon('download', 'sm')); z.appendChild(document.createTextNode('Download .zip'));
       z.addEventListener('click', () => dl.click());
       actions.appendChild(z);
+      // Chrome/Edge only offer folder writing on secure pages (the host's localhost, or
+      // an address allowed in chrome://flags); elsewhere the button simply isn't shown.
+      if (window.showDirectoryPicker) {
+        const sv = el('button'); sv.type = 'button';
+        sv.appendChild(icon('folder', 'sm')); sv.appendChild(document.createTextNode('Save into folder…'));
+        sv.title = 'Copy the files into a folder on this computer, replacing ones that changed';
+        sv.addEventListener('click', () => saveIntoFolder(ev.name, sv));
+        actions.appendChild(sv);
+      }
     } else {
       const x = ext(ev.name);
       if (VID_RE.test(x)) {
@@ -778,6 +993,66 @@ dialog#secDlg::backdrop{background:var(--scrim)}
       body.appendChild(f.card);
     }
     if (actions.childNodes.length) body.appendChild(actions);
+  }
+
+  // Writes a shared folder's files into a folder the user picks. Files already there with
+  // the same size and a newer date are skipped; others are replaced. Nothing is deleted.
+  function sameBytes(a, b) {
+    if (a.byteLength !== b.byteLength) return false;
+    const x = new Uint8Array(a), y = new Uint8Array(b);
+    for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
+    return true;
+  }
+  async function saveIntoFolder(folder, btn) {
+    let dir;
+    try { dir = await window.showDirectoryPicker({ id: 'ls-save', mode: 'readwrite' }); } catch (e) { return; } // cancelled
+    const label = btn.lastChild, idle = label.textContent;
+    btn.disabled = true;
+    let added = 0, updated = 0, same = 0, failed = 0;
+    try {
+      const r = await fetch('/api/files?room=' + encodeURIComponent(room) + '&folder=' + encodeURIComponent(folder));
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const files = await r.json(), queue = files.slice();
+      const subdirs = new Map(); // "a/b" -> handle, so each folder is opened once
+      const subdir = (p) => {
+        if (!p) return Promise.resolve(dir);
+        if (!subdirs.has(p)) {
+          const i = p.lastIndexOf('/');
+          subdirs.set(p, subdir(i < 0 ? '' : p.slice(0, i)).then((d) => d.getDirectoryHandle(p.slice(i + 1), { create: true })));
+        }
+        return subdirs.get(p);
+      };
+      const one = async (f) => {
+        try {
+          const i = f.path.lastIndexOf('/');
+          const d = await subdir(i < 0 ? '' : f.path.slice(0, i)), name = f.path.slice(i + 1);
+          let old = null;
+          try { old = await (await d.getFileHandle(name)).getFile(); } catch (e) { /* new file */ }
+          // Same size: compare contents (dates can't tell, since saving here stamps today's date).
+          // Very large files fall back to the date.
+          const big = f.size > (64 << 20);
+          if (old && old.size === f.size && big && old.lastModified >= f.mtime) { same++; return; }
+          const res = await fetch(fileUrl(folder, f.path));
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          let body = res.body;
+          if (old && old.size === f.size && !big) {
+            const [a, b] = await Promise.all([res.arrayBuffer(), old.arrayBuffer()]);
+            if (sameBytes(a, b)) { same++; return; }
+            body = new Blob([a]).stream();
+          }
+          const w = await (await d.getFileHandle(name, { create: true })).createWritable();
+          await body.pipeTo(w);
+          if (old) updated++; else added++;
+        } catch (e) { failed++; }
+        label.textContent = 'Saving ' + (added + updated + same + failed) + ' of ' + files.length + '…';
+      };
+      await Promise.all([1, 2, 3].map(async () => { while (queue.length) await one(queue.shift()); }));
+      toast('Saved “' + folder + '”: ' + added + ' new, ' + updated + ' updated, ' + same + ' unchanged' + (failed ? ', ' + failed + ' failed' : ''));
+    } catch (e) {
+      toast('Could not save “' + folder + '”');
+    }
+    label.textContent = idle;
+    btn.disabled = false;
   }
 
   function loadFolderList(folder, list) {
@@ -907,7 +1182,7 @@ dialog#secDlg::backdrop{background:var(--scrim)}
     $('#roomName').textContent = room;
     $('#drawerRoom').textContent = room;
     textEl.placeholder = 'Message /' + room;
-    updateTitle(); refreshUrls(); renderUrls($('#drawerUrls'));
+    updateTitle(); refreshUrls(); renderUrls($('#drawerUrls')); renderQr();
     if (drawer.classList.contains('open')) loadFiles();
     renderRooms();
 

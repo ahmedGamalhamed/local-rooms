@@ -31,6 +31,7 @@ Drop a folder onto the chat, or click the paperclip and choose **Folder**. The f
 
 - **Download .zip** gets the whole folder as a zip file (no size limit; works for folders over 4 GB).
 - **Show files** lists everything inside, and each file can be downloaded on its own.
+- **Save into folder…** copies the files straight into a folder you pick, replacing ones that changed (see below for where this button appears).
 
 Picking a folder isn't possible on iPhone/iPad (Safari doesn't support it); the paperclip there sends files only.
 
@@ -49,18 +50,39 @@ The folder card says what was left out, for example *Left out: node_modules/, .g
 
 To send everything, click the paperclip and untick **Skip junk folders**. The setting is remembered on that device.
 
+### Pull a folder onto another PC
+
+On the receiving PC, put a copy of `server.js` (it needs nothing else, just Node.js 22+) or of `LocalShare.exe`. Then one command copies a shared folder into a folder on that PC:
+
+```
+node server.js pull work my-project D:\code\my-project
+LocalShare.exe pull work my-project D:\code\my-project
+```
+
+- It finds the LocalShare host on the network by itself. If it can't (some networks block this), give the address instead: `pull http://192.168.0.210:8080/work my-project D:\code\my-project`.
+- If you sent `my-project` several times, it takes the newest copy (`my-project (2)` and so on).
+- Files that haven't changed are skipped; changed ones are replaced. Files that only exist on this PC are left alone, and nothing is deleted.
+- With a passcode on, it asks for it (or add `--passcode 1234`).
+- Leave out the destination to use a folder with the same name in the current directory.
+
+**Save into folder… in the browser** does the same from a folder card, in Chrome or Edge. Browsers only allow it on secure pages, so the button shows on the host computer (`http://localhost:8080`) but not on other devices. To get it on another PC, open `chrome://flags/#unsafely-treat-insecure-origin-as-secure` (or `edge://flags/…`), add the LocalShare address, for example `http://192.168.0.210:8080`, set it to **Enabled** and restart the browser.
+
 ## Rooms
 
 Rooms keep separate conversations and files apart. Room names are short and easy to type: lowercase letters, numbers and dashes.
 
 - **Join or create a room:** type a name in the box under **Rooms**, for example `work`. Typing `Family Pics` becomes `family-pics`.
 - **Go straight to a room:** add its name to the address, for example `http://192.168.0.210:8080/work`.
-- The **Files** panel shows the link to the current room (tap to copy) and every file shared in it.
+- The **Files** panel shows the link to the current room (tap to copy), a **QR code** of it to scan with a phone camera, and every file shared in it.
 - Rooms with new messages show a count. Everyone starts in `general`.
 
 ## Long messages
 
-There's no limit on message length, file size, or number of messages. Long messages are shown collapsed, with **Show all**, **Copy** and **Save as .txt** buttons. Older messages load with **Load older messages** at the top of a room.
+There's no limit on message length, file size, or number of messages.
+
+Put code between lines of three backticks and it shows in a monospace box with its indentation kept and its own **Copy** button. A word after the opening backticks (` ```powershell `) labels the box. Single backticks (`` `like this` ``) mark inline code.
+
+Long messages are shown collapsed, with **Show all**, **Copy** and **Save as .txt** buttons. Older messages load with **Load older messages** at the top of a room.
 
 ## Where things are saved
 

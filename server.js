@@ -15,6 +15,18 @@ const { exec } = require('node:child_process');
 let sea = null;
 try { const s = require('node:sea'); if (s.isSea()) sea = s; } catch { /* not packaged */ }
 
+// The host answers "LOCALSHARE?" on this UDP port, so `pull` can find it without an address.
+const DISCOVERY_PORT = 41780;
+
+// `node server.js pull …` (or `LocalShare.exe pull …`) copies a shared folder onto
+// this computer instead of starting a server. See runPull at the bottom.
+if (process.argv[2] === 'pull') {
+  runPull(process.argv.slice(3)).then(
+    () => process.exit(0),
+    (e) => { console.error('\n  ' + e.message + '\n'); process.exit(1); });
+  return; // CommonJS allows a top-level return: nothing below runs
+}
+
 const BASE_DIR = sea ? path.dirname(process.execPath) : __dirname;
 const DATA_DIR = path.join(BASE_DIR, 'LocalShare Files'); // one sub-folder per room
 const CHAT_DIR = path.join(DATA_DIR, '.chat');            // <room>.jsonl message history
@@ -739,5 +751,185 @@ function listen(port, attemptsLeft) {
   });
 }
 
+// Answer pull's "LOCALSHARE?" broadcast with our port. reuseAddr keeps a second copy of
+// LocalShare from failing to bind (it may not get the broadcasts, but its address still works).
+function startDiscovery() {
+  const sock = require('node:dgram').createSocket({ type: 'udp4', reuseAddr: true });
+  sock.on('message', (msg, rinfo) => {
+    if (msg.toString() !== 'LOCALSHARE?') return;
+    sock.send(JSON.stringify({ localshare: 1, port: PORT, name: os.hostname() }), rinfo.port, rinfo.address);
+  });
+  sock.on('error', () => sock.close()); // discovery is optional; the address always works
+  sock.bind(DISCOVERY_PORT);
+}
+
 process.on('uncaughtException', (e) => console.error(e));
 listen(START_PORT, 20);
+startDiscovery();
+
+// ---------- pull: copy a shared folder onto this computer ----------
+// node server.js pull <room | http://host:port/room> <folder> [destination] [--passcode X]
+// Downloads every file of the newest folder called <folder> (or "<folder> (2)" etc.) in
+// that room. Files whose size and time match the last pull are skipped; changed ones
+// are replaced. Nothing else in the destination is touched or deleted.
+async function runPull(args) {
+  let passcode;
+  const pos = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--passcode') passcode = args[++i] ?? '';
+    else pos.push(args[i]);
+  }
+  const [where, folderName, destArg] = pos;
+  if (!where || !folderName) {
+    throw new Error([
+      'Usage:  pull <room> <folder> [destination] [--passcode X]',
+      '        pull http://192.168.0.210:8080/<room> <folder> [destination]',
+      '',
+      '  e.g.  node server.js pull work my-project D:\\code\\my-project',
+    ].join('\n  '));
+  }
+  let base, room;
+  if (/^https?:\/\//i.test(where)) {
+    const u = new URL(where);
+    base = u.origin;
+    room = decodeURIComponent(u.pathname.replace(/^\/+|\/+$/g, '')) || 'general';
+  } else {
+    room = where;
+    base = await discoverHost();
+  }
+  room = room.toLowerCase();
+  const dest = path.resolve(destArg || folderName);
+
+  // Sign in when the host has a passcode.
+  let cookieHeader = '';
+  const session = await (await fetchOk(base + '/api/session')).json();
+  if (session.locked) {
+    if (passcode === undefined) passcode = await askLine('  Passcode: ');
+    const r = await fetch(base + '/api/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ passcode }),
+    });
+    const body = await r.json().catch(() => ({}));
+    if (r.status === 429) throw new Error(`Too many wrong passcodes. Try again in ${body.wait} seconds.`);
+    if (!r.ok) throw new Error('Wrong passcode.');
+    cookieHeader = r.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
+  }
+  const get = (p) => fetchOk(base + p, { headers: { Cookie: cookieHeader } });
+
+  // The newest folder with that name: re-sending "my-project" makes "my-project (1)", "(2)"…
+  const entries = await (await get('/api/files?room=' + encodeURIComponent(room))).json();
+  const esc = folderName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const same = new RegExp('^' + esc + '( \\(\\d+\\))?$', 'i');
+  const pick = entries.filter((e) => e.folder && same.test(e.name)).sort((a, b) => b.mtime - a.mtime)[0];
+  if (!pick) {
+    const names = entries.filter((e) => e.folder).map((e) => e.name);
+    throw new Error(`No folder called "${folderName}" in /${room}.` + (names.length ? ' Folders there: ' + names.join(', ') : ''));
+  }
+  const files = await (await get('/api/files?room=' + encodeURIComponent(room) + '&folder=' + encodeURIComponent(pick.name))).json();
+  console.log(`\n  Pulling "${pick.name}" from ${base}/${room}`);
+  console.log(`  into ${dest}\n`);
+
+  let added = 0, updated = 0, same_ = 0, failed = 0, bytes = 0;
+  const queue = files.slice();
+  async function one(f) {
+    const segs = f.path.split('/');
+    const target = path.join(dest, ...segs);
+    if (segs.some((s) => !s || s === '.' || s === '..') || !target.startsWith(dest.endsWith(path.sep) ? dest : dest + path.sep)) return;
+    const st = await fs.promises.stat(target).catch(() => null);
+    if (st && st.isFile() && st.size === f.size && Math.abs(st.mtimeMs - f.mtime) < 2000) { same_++; return; }
+    const url = '/files/' + encodeURIComponent(room) + '/' + encodeURIComponent(pick.name) + '/' + segs.map(encodeURIComponent).join('/');
+    try {
+      const r = await get(url);
+      await fs.promises.mkdir(path.dirname(target), { recursive: true });
+      const tmp = target + '.lspart';
+      await require('node:stream/promises').pipeline(require('node:stream').Readable.fromWeb(r.body), fs.createWriteStream(tmp));
+      bytes += f.size;
+      // A re-sent folder has new times; don't call a file "updated" if its content didn't change.
+      if (st && st.size === f.size && await fileHash(tmp) === await fileHash(target)) {
+        await fs.promises.rm(tmp, { force: true });
+        await fs.promises.utimes(target, new Date(), new Date(f.mtime));
+        same_++;
+        return;
+      }
+      await fs.promises.rename(tmp, target);
+      await fs.promises.utimes(target, new Date(), new Date(f.mtime)); // so the next pull can skip it
+      if (st) updated++; else added++;
+      console.log((st ? '  updated  ' : '  new      ') + f.path);
+    } catch (e) {
+      failed++;
+      console.log('  FAILED   ' + f.path + ' (' + e.message + ')');
+    }
+  }
+  await Promise.all([1, 2, 3, 4].map(async () => { while (queue.length) await one(queue.shift()); }));
+
+  const mb = (bytes / 1048576).toFixed(1);
+  console.log(`\n  Done: ${added} new, ${updated} updated, ${same_} unchanged` + (failed ? `, ${failed} failed` : '') + ` (${mb} MB downloaded)\n`);
+  if (failed) throw new Error(`${failed} file(s) could not be downloaded. Run the same command again to retry them.`);
+}
+
+async function fetchOk(url, opts) {
+  let r;
+  try { r = await fetch(url, opts); } catch { throw new Error('Could not reach LocalShare at ' + new URL(url).origin); }
+  if (r.status === 401) throw new Error('The passcode was refused.');
+  if (!r.ok) throw new Error(`HTTP ${r.status} for ${new URL(url).pathname}`);
+  return r;
+}
+
+function fileHash(p) {
+  return new Promise((resolve, reject) => {
+    const h = crypto.createHash('sha256');
+    fs.createReadStream(p).on('data', (d) => h.update(d)).on('end', () => resolve(h.digest('hex'))).on('error', reject);
+  });
+}
+
+function askLine(q) {
+  const rl = require('node:readline').createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => rl.question(q, (a) => { rl.close(); resolve(a); }));
+}
+
+// Broadcast "LOCALSHARE?" on every network and wait briefly for hosts to answer.
+function discoverHost() {
+  return new Promise((resolve, reject) => {
+    const sock = require('node:dgram').createSocket('udp4');
+    const found = new Map(); // "ip:port" -> hostname
+    sock.on('message', (msg, rinfo) => {
+      try {
+        const j = JSON.parse(msg.toString());
+        if (j.localshare && j.port) found.set(`${rinfo.address}:${j.port}`, j.name || rinfo.address);
+      } catch { /* not ours */ }
+    });
+    sock.on('error', (e) => { sock.close(); reject(new Error('Could not search the network: ' + e.message)); });
+    sock.bind(0, () => {
+      sock.setBroadcast(true);
+      const targets = new Set(['255.255.255.255', '127.0.0.1']);
+      for (const list of Object.values(os.networkInterfaces())) {
+        for (const a of list || []) {
+          if (a.family !== 'IPv4' && a.family !== 4) continue;
+          if (a.internal) continue;
+          const ip = a.address.split('.').map(Number), mask = a.netmask.split('.').map(Number);
+          targets.add(ip.map((b, i) => (b | (~mask[i] & 255))).join('.'));
+        }
+      }
+      const probe = Buffer.from('LOCALSHARE?');
+      const sendAll = () => { for (const t of targets) sock.send(probe, DISCOVERY_PORT, t, () => {}); };
+      sendAll();
+      setTimeout(sendAll, 400);
+      setTimeout(() => {
+        sock.close();
+        // The same host can answer on several addresses; prefer a LAN one over 127.0.0.1.
+        const hosts = new Map();
+        for (const [addr, name] of found) {
+          const prev = hosts.get(name);
+          if (!prev || prev.startsWith('127.')) hosts.set(name, addr);
+        }
+        if (hosts.size === 1) {
+          const [[name, addr]] = hosts;
+          console.log(`\n  Found LocalShare on ${name} (${addr})`);
+          return resolve('http://' + addr);
+        }
+        if (!hosts.size) return reject(new Error('Could not find LocalShare on the network. Give its address instead, e.g.\n  pull http://192.168.0.210:8080/<room> <folder>'));
+        reject(new Error('Found more than one LocalShare. Give the address of the one you want:\n'
+          + [...hosts].map(([n, a]) => `    http://${a}  (${n})`).join('\n')));
+      }, 1200);
+    });
+  });
+}
