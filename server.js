@@ -454,7 +454,14 @@ async function handleFolderDone(req, res) {
     return json(res, 400, { error: 'Folder is empty' });
   }
   const size = files.reduce((s, f) => s + f.size, 0);
-  const ev = addEvent(r, { type: 'folder', from: cleanName(body.from), client: String(body.client || '').slice(0, 32), name: folder, count: files.length, size });
+  const ev = { type: 'folder', from: cleanName(body.from), client: String(body.client || '').slice(0, 32), name: folder, count: files.length, size };
+  // What the sender left out (node_modules, .git, things in .gitignore), shown on the card.
+  const skipped = Array.isArray(body.skipped) ? body.skipped.map((s) => String(s).slice(0, 120)).filter(Boolean).slice(0, 30) : [];
+  if (skipped.length) {
+    ev.skipped = skipped;
+    ev.skippedTotal = Math.min(Math.max(skipped.length, Math.floor(Number(body.skippedTotal)) || 0), 1e6);
+  }
+  addEvent(r, ev);
   console.log(`  [${r.name}] ${ev.from} shared folder "${folder}" (${files.length} files, ${size} bytes)`);
   json(res, 200, { id: ev.id });
 }

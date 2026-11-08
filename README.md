@@ -27,7 +27,7 @@ The passcode itself isn't stored, only a scrambled version of it, in `LocalShare
 
 ## Folders
 
-Drop a folder onto the chat, or click the paperclip and choose **Folder**. The whole folder is sent with its sub-folders kept intact, and shows up in the chat as one card:
+Drop a folder onto the chat, or click the paperclip and choose **Folder**. The folder is sent with its sub-folders kept intact (minus junk, see below), and shows up in the chat as one card:
 
 - **Download .zip** gets the whole folder as a zip file (no size limit; works for folders over 4 GB).
 - **Show files** lists everything inside, and each file can be downloaded on its own.
@@ -37,6 +37,17 @@ Picking a folder isn't possible on iPhone/iPad (Safari doesn't support it); the 
 To stop, close the console window on the host. Everyone's chat stops with it.
 
 **First run:** Windows Firewall will ask whether to allow LocalShare. Tick **Private networks** and click Allow, or other devices won't be able to connect.
+
+### Junk is left out
+
+Sending a code project shouldn't mean sending 500 MB of dependencies. When you send a folder, LocalShare leaves out:
+
+- `node_modules`, `.git`, `.svn`, `.hg`, `__pycache__`, `.venv`, `venv`, `.pnpm-store`, `.next`, `.nuxt`, `.turbo`, `.cache`, `.parcel-cache`, `.gradle`, `.vs`, and `Thumbs.db`, `.DS_Store`, `desktop.ini` files
+- anything the folder's own **`.gitignore`** files list (for example `dist/`, `bin/`, `*.log`), following the same rules as git
+
+The folder card says what was left out, for example *Left out: node_modules/, .git/, .env*. Most `.gitignore` files list `.env` and other local secrets, so those are left out too.
+
+To send everything, click the paperclip and untick **Skip junk folders**. The setting is remembered on that device.
 
 ## Rooms
 
