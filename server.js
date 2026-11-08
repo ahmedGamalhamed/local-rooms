@@ -36,7 +36,8 @@ const INDEX_HTML = sea
 
 const argv = process.argv;
 const argVal = (flag) => { const i = argv.indexOf(flag); return i >= 0 ? argv[i + 1] : undefined; };
-const START_PORT = parseInt(argVal('--port') || process.env.PORT || '8080', 10);
+const DEFAULT_PORT = 8971;
+const PORT_GIVEN = argVal('--port') || process.env.PORT;
 const NO_OPEN = argv.includes('--no-open');
 
 fs.mkdirSync(CHAT_DIR, { recursive: true });
@@ -662,7 +663,7 @@ function handleDownload(req, res, url) {
 }
 
 // ---------- server ----------
-let PORT = START_PORT;
+let PORT = DEFAULT_PORT;
 
 const server = http.createServer(async (req, res) => {
   try {
@@ -763,9 +764,34 @@ function startDiscovery() {
   sock.bind(DISCOVERY_PORT);
 }
 
+// Without --port, ask which port to use when started in a console (Enter keeps the default).
+function askPort() {
+  const valid = (n) => Number.isInteger(n) && n > 0 && n < 65536;
+  if (PORT_GIVEN) {
+    const n = parseInt(PORT_GIVEN, 10);
+    return Promise.resolve(valid(n) ? n : DEFAULT_PORT);
+  }
+  if (!process.stdin.isTTY) return Promise.resolve(DEFAULT_PORT);
+  const rl = require('node:readline').createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    const ask = () => rl.question(`
+  Port to use [${DEFAULT_PORT}]: `, (a) => {
+      a = a.trim();
+      if (!a) { rl.close(); return resolve(DEFAULT_PORT); }
+      const n = Number(a);
+      if (valid(n)) { rl.close(); return resolve(n); }
+      console.log('  Enter a number from 1 to 65535, or press Enter for ' + DEFAULT_PORT + '.');
+      ask();
+    });
+    ask();
+  });
+}
+
 process.on('uncaughtException', (e) => console.error(e));
-listen(START_PORT, 20);
-startDiscovery();
+askPort().then((port) => {
+  listen(port, 20);
+  startDiscovery();
+});
 
 // ---------- pull: copy a shared folder onto this computer ----------
 // node server.js pull <room | http://host:port/room> <folder> [destination] [--passcode X]

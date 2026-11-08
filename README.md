@@ -5,8 +5,8 @@ Send messages and files between devices on your local network (Wi‑Fi/LAN).
 
 ## Use it
 
-1. On the host computer, double-click **`dist\LocalShare.exe`**. A console window shows the address, and your browser opens the chat.
-2. On any other device on the same network, open that address, for example `http://192.168.0.210:8080`.
+1. On the host computer, double-click **`dist\LocalShare.exe`**. It asks which port to use (press Enter for 8971), then the console window shows the address, and your browser opens the chat.
+2. On any other device on the same network, open that address, for example `http://192.168.0.210:8971`.
 3. Type messages, or drag and drop / paste / use the paperclip to send files and folders. Images, video and audio preview inline. Pasted files wait above the message box until you press Send.
 4. Several images or files sent one after another show as one album or group with **Download all**, which saves them as one .zip. This works in remote rooms too.
 
@@ -60,20 +60,20 @@ node server.js pull work my-project D:\code\my-project
 LocalShare.exe pull work my-project D:\code\my-project
 ```
 
-- It finds the LocalShare host on the network by itself. If it can't (some networks block this), give the address instead: `pull http://192.168.0.210:8080/work my-project D:\code\my-project`.
+- It finds the LocalShare host on the network by itself. If it can't (some networks block this), give the address instead: `pull http://192.168.0.210:8971/work my-project D:\code\my-project`.
 - If you sent `my-project` several times, it takes the newest copy (`my-project (2)` and so on).
 - Files that haven't changed are skipped; changed ones are replaced. Files that only exist on this PC are left alone, and nothing is deleted.
 - With a passcode on, it asks for it (or add `--passcode 1234`).
 - Leave out the destination to use a folder with the same name in the current directory.
 
-**Save into folder… in the browser** does the same from a folder card, in Chrome or Edge. Browsers only allow it on secure pages, so the button shows on the host computer (`http://localhost:8080`) but not on other devices. To get it on another PC, open `chrome://flags/#unsafely-treat-insecure-origin-as-secure` (or `edge://flags/…`), add the LocalShare address, for example `http://192.168.0.210:8080`, set it to **Enabled** and restart the browser.
+**Save into folder… in the browser** does the same from a folder card, in Chrome or Edge. Browsers only allow it on secure pages, so the button shows on the host computer (`http://localhost:8971`) but not on other devices. To get it on another PC, open `chrome://flags/#unsafely-treat-insecure-origin-as-secure` (or `edge://flags/…`), add the LocalShare address, for example `http://192.168.0.210:8971`, set it to **Enabled** and restart the browser.
 
 ## Rooms
 
 Rooms keep separate conversations and files apart. Room names are short and easy to type: lowercase letters, numbers and dashes.
 
 - **Join or create a room:** type a name in the box under **Rooms**, for example `work`. Typing `Family Pics` becomes `family-pics`.
-- **Go straight to a room:** add its name to the address, for example `http://192.168.0.210:8080/work`.
+- **Go straight to a room:** add its name to the address, for example `http://192.168.0.210:8971/work`.
 - The **Files** panel shows the link to the current room (tap to copy), a **QR code** of it to scan with a phone camera, and every file shared in it.
 - Rooms with new messages show a count. Everyone starts in `general`.
 
@@ -101,7 +101,7 @@ Chat history and files survive restarts. To clear a room, close LocalShare and d
 ### Options
 
 ```
-LocalShare.exe --port 9000     use a different port (default 8080; the next free port is used if it's taken)
+LocalShare.exe --port 9000     use a different port without being asked (default 8971; the next free port is used if it's taken)
 LocalShare.exe --no-open       don't open the browser automatically
 LocalShare.exe --passcode 1234 set the passcode (saved; --passcode "" removes it)
 ```
