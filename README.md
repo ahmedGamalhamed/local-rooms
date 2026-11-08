@@ -7,7 +7,32 @@ Send messages and files between devices on your local network (Wi‑Fi/LAN).
 
 1. On the host computer, double-click **`dist\LocalShare.exe`**. A console window shows the address, and your browser opens the chat.
 2. On any other device on the same network, open that address, for example `http://192.168.0.210:8080`.
-3. Type messages, or drag and drop / paste / **+** to send files. Images, video and audio preview inline.
+3. Type messages, or drag and drop / paste / use the paperclip to send files and folders. Images, video and audio preview inline.
+
+## Passcode
+
+By default anyone on your network can join. To lock LocalShare:
+
+1. On the **host computer** (the one running LocalShare), click the **lock icon** next to your name at the bottom of the rooms list.
+2. Type a passcode (at least 4 characters) and click **Save**.
+
+Other devices now see a lock screen and must enter the passcode once; they stay signed in after that. The host computer never needs it.
+
+- **Change it:** devices still using the old passcode are signed out at once and must enter the new one.
+- **Remove it:** click the lock icon and choose **Remove passcode**.
+- **Wrong guesses:** after 5 wrong tries, that device must wait 30 seconds, and the wait doubles with each further wrong try (up to 15 minutes).
+- **Forgot it?** Just set a new one from the host computer.
+
+The passcode itself isn't stored, only a scrambled version of it, in `LocalShare Files\.chat\config.json`.
+
+## Folders
+
+Drop a folder onto the chat, or click the paperclip and choose **Folder**. The whole folder is sent with its sub-folders kept intact, and shows up in the chat as one card:
+
+- **Download .zip** gets the whole folder as a zip file (no size limit; works for folders over 4 GB).
+- **Show files** lists everything inside, and each file can be downloaded on its own.
+
+Picking a folder isn't possible on iPhone/iPad (Safari doesn't support it); the paperclip there sends files only.
 
 To stop, close the console window on the host. Everyone's chat stops with it.
 
@@ -32,7 +57,7 @@ Everything is in a **`LocalShare Files`** folder next to the exe:
 
 ```
 LocalShare Files\
-  general\          files shared in /general
+  general\          files and folders shared in /general
   work\             files shared in /work
   .chat\            message history (one file per room; hidden)
 ```
@@ -44,6 +69,7 @@ Chat history and files survive restarts. To clear a room, close LocalShare and d
 ```
 LocalShare.exe --port 9000     use a different port (default 8080; the next free port is used if it's taken)
 LocalShare.exe --no-open       don't open the browser automatically
+LocalShare.exe --passcode 1234 set the passcode (saved; --passcode "" removes it)
 ```
 
 ## Portable
@@ -62,4 +88,6 @@ This produces `dist\LocalShare.exe`. The only source files are `server.js` (the 
 
 ## Notes
 
-There's no password. Anyone on the same network who opens the address can see every room and its files. Use it on networks you trust (home or office), not public Wi‑Fi.
+Without a passcode, anyone on the same network who opens the address can see every room and its files. Set a passcode if other people share your network, and don't use LocalShare on public Wi‑Fi.
+
+Everything travels unencrypted (plain `http://`), as with most local network tools. The passcode keeps people out, but someone who can watch the network traffic could still see what's sent.
