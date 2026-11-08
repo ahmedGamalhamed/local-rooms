@@ -202,6 +202,13 @@ footer{padding:10px 20px calc(14px + env(safe-area-inset-bottom));flex:none}
 #send{width:40px;padding:0}
 #send:disabled{opacity:.45;cursor:default}
 .composer-hint{font-size:11.5px;color:var(--muted);padding:6px 6px 0;text-align:center}
+/* pasted files, waiting for Send */
+.tray{display:flex;gap:8px;overflow-x:auto;padding:0 2px 8px}
+.chip{flex:none;display:flex;align-items:center;gap:8px;max-width:240px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:6px 4px 6px 6px;box-shadow:var(--shadow)}
+.chip img{width:40px;height:40px;object-fit:cover;border-radius:8px;flex:none}
+.chip .ficon{width:40px;height:40px;font-size:9.5px}
+.chip .fn{font-size:13px}
+.chip .iconbtn{width:30px;height:30px}
 
 /* files drawer */
 #drawer{width:340px;flex:none;border-left:1px solid var(--border);background:var(--surface);overflow-y:auto;display:none;padding:0 18px 20px}
@@ -371,6 +378,7 @@ dialog#secDlg::backdrop{background:var(--scrim)}
     </header>
     <main id="log" aria-live="polite"></main>
     <footer id="footer">
+      <div class="tray" id="tray" hidden aria-label="Pasted files, shared with your next message"></div>
       <div class="composer">
         <div class="attachwrap">
           <button class="iconbtn" id="attach" aria-label="Share files or a folder" title="Share files or a folder" aria-haspopup="menu" aria-expanded="false"><svg class="i"><use href="#i-clip"/></svg></button>
@@ -1365,10 +1373,46 @@ dialog#secDlg::backdrop{background:var(--scrim)}
     if (ev.type !== 'msg' && drawer.classList.contains('open')) loadFiles();
   }
 
+  // ---------- pasted files wait above the message box until Send ----------
+  // Pasting is easy to do by accident, so pasted files are never shared straight away.
+  let staged = []; // [{ file, url }]
+  function stageFiles(files) {
+    for (const f of files) staged.push({ file: f, url: IMG_RE.test(ext(f.name)) ? URL.createObjectURL(f) : null });
+    renderTray(); autosize(); textEl.focus();
+  }
+  function takeStaged() {
+    const files = staged.map((s) => s.file);
+    staged.forEach((s) => { if (s.url) URL.revokeObjectURL(s.url); });
+    staged = []; renderTray(); autosize();
+    return files;
+  }
+  function renderTray() {
+    const tray = $('#tray'); tray.innerHTML = '';
+    tray.hidden = !staged.length;
+    staged.forEach((s) => {
+      const chip = el('div', 'chip');
+      if (s.url) { const im = el('img'); im.src = s.url; im.alt = ''; chip.appendChild(im); } else chip.appendChild(ficon(s.file.name));
+      const info = el('div', 'finfo');
+      info.appendChild(el('div', 'fn', s.file.name)).title = s.file.name;
+      info.appendChild(el('div', 'fs', fmtSize(s.file.size)));
+      chip.appendChild(info);
+      const x = el('button', 'iconbtn'); x.type = 'button'; x.title = 'Don’t share';
+      x.setAttribute('aria-label', 'Don’t share ' + s.file.name);
+      x.appendChild(icon('x', 'sm'));
+      x.addEventListener('click', () => {
+        if (s.url) URL.revokeObjectURL(s.url);
+        staged.splice(staged.indexOf(s), 1);
+        renderTray(); autosize(); textEl.focus();
+      });
+      chip.appendChild(x);
+      tray.appendChild(chip);
+    });
+  }
+
   // ---------- sending text ----------
   function autosize() {
     textEl.style.height = 'auto'; textEl.style.height = Math.min(textEl.scrollHeight, window.innerHeight * 0.4) + 'px';
-    $('#send').disabled = !textEl.value.trim();
+    $('#send').disabled = !textEl.value.trim() && !staged.length;
   }
   textEl.addEventListener('input', autosize);
   textEl.addEventListener('keydown', (e) => {
@@ -1378,10 +1422,14 @@ dialog#secDlg::backdrop{background:var(--scrim)}
 
   function sendText() {
     const text = textEl.value;
-    if (!text.trim() || !room) return;
+    const hasText = !!text.trim();
+    if (!room || (!hasText && !staged.length)) return;
     if (text.length > 500000) { toast('That message is too long. Save it as a .txt file and share that.'); return; }
-    if (!send(room, { t: 'msg', from: myName, text })) { toast('Not connected. Your message is still in the box.'); return; }
-    textEl.value = ''; autosize();
+    const c = conns.get(room);
+    if (!c || !c.ws || c.ws.readyState !== WebSocket.OPEN) { toast('Not connected. Your message is still in the box.'); return; }
+    if (hasText) { send(room, { t: 'msg', from: myName, text }); textEl.value = ''; }
+    if (staged.length) uploadFiles(takeStaged());
+    autosize();
     textEl.focus();
   }
 
@@ -1732,7 +1780,7 @@ dialog#secDlg::backdrop{background:var(--scrim)}
 
   textEl.addEventListener('paste', (e) => {
     const files = e.clipboardData && e.clipboardData.files;
-    if (files && files.length) { e.preventDefault(); uploadFiles(files); }
+    if (files && files.length) { e.preventDefault(); stageFiles(files); }
   });
 
   // ---------- drag and drop (files and folders) ----------
