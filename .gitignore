@@ -1,5 +1,6 @@
-# build output (rebuild with build.ps1)
-dist/
+# build output (rebuild with build.ps1); the exe itself is committed
+dist/*
+!dist/LocalShare.exe
 *.blob
 
 # runtime data: shared files and chat history
