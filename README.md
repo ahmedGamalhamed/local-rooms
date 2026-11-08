@@ -119,6 +119,45 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 
 This produces `dist\LocalShare.exe`. The only source files are `server.js` (the server) and `index.html` (the UI). There are no dependencies.
 
+## Remote rooms (over the internet)
+
+LocalShare itself only works on one network. For devices that can't reach each other directly (a PC on a VPN that blocks the local network, a phone on mobile data, someone in another city), there's a separate **LocalShare Remote** in [`remote/`](remote), hosted on Cloudflare Workers. It's a different site with its own rooms; local rooms and remote rooms don't mix.
+
+### Use it
+
+1. Open the site (for example `https://localshare-remote.<your-subdomain>.workers.dev`) and click **Make a room**. Give it a name if you like.
+2. The **Files** panel shows the room's link and a QR code. Open that link on the other device.
+3. Chat and share files as in LocalShare.
+
+A room's address has a random key, like `/r/k7f3-m9q2-x8wa`. **The link is the only way in**, so anyone who has it can join, and nobody can find a room without it. Your device remembers the rooms you've joined under **Your rooms**; removing one there only forgets it on that device.
+
+### Files are never stored online
+
+Sharing a file only posts its card in the room. When someone downloads it, the bytes stream from the sharing browser through the Worker straight into their download, and nothing is kept. So:
+
+- **Keep the page open** while others need the files. Closing or reloading it stops sharing (the page asks before you leave). Files from a closed page are greyed out with a note; they're back if the same page reconnects after a network drop.
+- A phone that locks its screen or switches apps usually drops the connection, so share from a phone only while it stays on the page.
+- Downloads are as fast as the sender's upload. Several people can download at once.
+- Folders work as in LocalShare: **Download .zip** (made on the fly by the sender), **Show files**, and **Save into folder…** (this works on every computer, since the site is `https://`).
+
+Messages *are* stored, in the room on Cloudflare: the last 5,000 per room, up to 500,000 characters each. A room nobody opens for 30 days is deleted.
+
+Traffic is encrypted between each browser and Cloudflare (`https://`). Cloudflare can see it in passing, as with any site it hosts.
+
+### Deploy it
+
+Needs Node.js and a Cloudflare account (the free plan is enough).
+
+```
+cd remote
+npx wrangler login
+npx wrangler deploy
+```
+
+Wrangler prints the site's address. To try it locally first, run `npx wrangler dev` and open `http://localhost:8787`.
+
+The files are `remote/worker.js` (the Worker, plus one Durable Object per room) and `remote/index.html` (the page, which reuses most of LocalShare's `index.html`).
+
 ## Notes
 
 Without a passcode, anyone on the same network who opens the address can see every room and its files. Set a passcode if other people share your network, and don't use LocalShare on public Wi‑Fi.

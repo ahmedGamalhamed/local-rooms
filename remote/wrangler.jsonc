@@ -1,0 +1,12 @@
+// LocalShare Remote: rooms that work across the internet. Deploy with `wrangler deploy`
+// from this folder. index.html is bundled into the Worker as text.
+{
+  "name": "localshare-remote",
+  "main": "worker.js",
+  "compatibility_date": "2025-09-01",
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "Room" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
+  "observability": { "enabled": true }
+}

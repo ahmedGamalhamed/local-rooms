@@ -1,0 +1,1826 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>LocalShare Remote</title>
+<style>
+:root{
+  --bg:#f4f6f8;--surface:#ffffff;--surface-2:#eef1f4;--text:#0f172a;--muted:#5b6676;--border:#e2e7ed;
+  --accent:#0f766e;--accent-hover:#115e59;--on-accent:#ffffff;--accent-soft:rgba(15,118,110,.10);--accent-text:#0f766e;
+  --mine:#0f766e;--mine-text:#ffffff;--theirs:#ffffff;--theirs-text:#0f172a;
+  --ok:#16a34a;--bad:#dc2626;--badge:#c2410c;--hover:rgba(15,23,42,.05);
+  --scrim:rgba(15,23,42,.45);--shadow:0 1px 2px rgba(15,23,42,.06),0 8px 24px rgba(15,23,42,.08);
+  --radius:18px;--ease:cubic-bezier(.2,.7,.3,1);
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0d1117;--surface:#151a21;--surface-2:#1d242d;--text:#e6edf3;--muted:#93a1b1;--border:#262e39;
+  --accent:#2dd4bf;--accent-hover:#5eead4;--on-accent:#042f2e;--accent-soft:rgba(45,212,191,.13);--accent-text:#5eead4;
+  --mine:#115e59;--mine-text:#f0fdfa;--theirs:#1d242d;--theirs-text:#e6edf3;
+  --ok:#22c55e;--bad:#f87171;--badge:#ea580c;--hover:rgba(255,255,255,.06);
+  --scrim:rgba(0,0,0,.6);--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);
+}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{font:15px/1.5 "Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;overflow:hidden;-webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer;color:inherit}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,textarea{font:inherit;color:var(--text)}
+.i{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.i.sm{width:16px;height:16px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* generic buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--border);background:var(--surface);font-weight:500;font-size:14px;transition:background-color .15s,border-color .15s,color .15s}
+.btn:hover{background:var(--hover)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.iconbtn{display:inline-grid;place-items:center;width:40px;height:40px;border-radius:10px;border:0;background:transparent;color:var(--muted);transition:background-color .15s,color .15s;position:relative;flex:none;text-decoration:none}
+.iconbtn:hover{background:var(--hover);color:var(--text)}
+.iconbtn.on,.btn.on{background:var(--accent-soft);color:var(--accent-text)}
+
+/* ---------- layout ---------- */
+#wrap{flex:1;display:flex;min-height:0}
+
+/* rooms sidebar */
+#rooms{width:264px;flex:none;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.brandbar{display:flex;align-items:center;gap:10px;padding:16px 16px 12px}
+.logo{width:34px;height:34px;border-radius:10px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;flex:none}
+.logo .i{width:19px;height:19px}
+.brand{font-weight:700;font-size:16px;letter-spacing:-.01em;flex:1}
+#closeRooms{display:none}
+.sectionlabel{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:10px 20px 6px;margin:0}
+#roomList{flex:1;overflow-y:auto;padding:2px 10px 10px;display:flex;flex-direction:column;gap:2px}
+.room{display:flex;align-items:center;gap:10px;width:100%;min-height:42px;text-align:left;border:0;background:none;padding:0 10px;border-radius:10px;color:var(--text);font-size:15px;transition:background-color .15s}
+.room:hover{background:var(--hover)}
+.room .hash{color:var(--muted)}
+.room.active{background:var(--accent-soft);color:var(--accent-text);font-weight:600}
+.room.active .hash{color:var(--accent-text)}
+.room .rn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.room .on{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px;font-weight:500}
+.room .on::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.badge{background:var(--badge);color:#fff;font-size:11px;font-weight:700;border-radius:999px;min-width:20px;height:20px;padding:0 6px;display:inline-grid;place-items:center}
+#joinForm{padding:12px 14px 16px;border-top:1px solid var(--border)}
+#joinForm label{display:block;font-size:13px;font-weight:500;color:var(--muted);margin-bottom:8px}
+#joinForm .row{display:flex;gap:6px}
+.field{flex:1;min-width:0;height:40px;background:var(--surface-2);border:1px solid transparent;border-radius:10px;padding:0 12px;outline:none;transition:border-color .15s,background-color .15s}
+.field:focus{border-color:var(--accent);background:var(--surface)}
+#joinPreview{font-size:12px;color:var(--muted);margin-top:6px;min-height:1.2em;word-break:break-all}
+.me{display:flex;align-items:center;gap:10px;padding:12px 14px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--border)}
+.me .avatar{width:34px;height:34px;font-size:13px}
+.me label{flex:1;min-width:0;display:flex;flex-direction:column;font-size:12px;color:var(--muted)}
+.me input{border:0;background:transparent;padding:2px 0;font-weight:600;font-size:14px;outline:none;border-bottom:1px dashed transparent;width:100%}
+.me input:hover{border-bottom-color:var(--border)}
+.me input:focus{border-bottom-color:var(--accent)}
+
+/* chat column */
+#chat{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+header{display:flex;align-items:center;gap:10px;height:64px;padding:0 12px 0 20px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
+#roomsBtn{display:none}
+#roomsBtn .dotbadge{position:absolute;top:7px;right:7px;width:9px;height:9px;border-radius:50%;background:var(--badge);border:2px solid var(--surface);display:none}
+#roomsBtn.unread .dotbadge{display:block}
+.titlewrap{flex:1;min-width:0}
+.roomtitle{font-weight:700;font-size:17px;letter-spacing:-.01em;display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.roomtitle .slash{color:var(--muted);font-weight:500}
+.status{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--bad)}
+.dot.on{background:var(--ok)}
+
+#log{flex:1;overflow-y:auto;padding:20px 20px 12px;display:flex;flex-direction:column}
+#log > *{flex:none}
+.empty{margin:auto;text-align:center;color:var(--muted);max-width:420px;padding:24px}
+.empty .bigicon{width:56px;height:56px;border-radius:16px;background:var(--accent-soft);color:var(--accent-text);display:grid;place-items:center;margin:0 auto 16px}
+.empty .bigicon .i{width:26px;height:26px}
+.empty h2{color:var(--text);font-size:19px;margin:0 0 6px;letter-spacing:-.01em}
+.empty p{margin:0}
+.urls{display:flex;flex-direction:column;gap:6px}
+.empty .urls{margin-top:16px;align-items:center}
+.url{display:inline-flex;align-items:center;gap:10px;min-height:40px;font-family:ui-monospace,"Cascadia Code",Consolas,monospace;font-size:13.5px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px 8px 6px 12px;color:var(--text);word-break:break-all;text-align:left;transition:border-color .15s,background-color .15s}
+.url:hover{border-color:var(--accent)}
+.url .i{color:var(--muted)}
+#older{align-self:center;margin-bottom:12px;height:34px;font-size:13px;color:var(--muted)}
+
+.daysep{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:12px;font-weight:600;margin:18px 0 10px}
+.daysep::before,.daysep::after{content:"";flex:1;height:1px;background:var(--border)}
+.daysep:first-child{margin-top:0}
+
+/* messages */
+.msg{display:flex;gap:10px;align-items:flex-end;max-width:min(78%,680px);align-self:flex-start;margin-top:14px}
+.msg.new{animation:in .22s var(--ease)}
+.msg.cont{margin-top:3px}
+.msg.mine{align-self:flex-end}
+.avatar{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;font-size:12px;font-weight:700;align-self:flex-start;letter-spacing:.02em}
+.msg.cont .avatar{visibility:hidden;height:0}
+.mbody{display:flex;flex-direction:column;gap:4px;align-items:flex-start;min-width:0;max-width:100%}
+.mine .mbody{align-items:flex-end}
+.meta{font-size:12px;color:var(--muted);padding:0 4px;display:flex;gap:8px;align-items:baseline}
+.meta .who{font-weight:600;color:var(--text);font-size:13px}
+.bubble{background:var(--theirs);color:var(--theirs-text);border:1px solid var(--border);border-radius:var(--radius);padding:9px 14px;white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%}
+.msg:not(.cont) .bubble{border-top-left-radius:6px}
+.mine .bubble{background:var(--mine);color:var(--mine-text);border-color:transparent}
+.mine:not(.cont) .bubble{border-top-left-radius:var(--radius);border-top-right-radius:6px}
+.bubble a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+.bubble code{font-family:ui-monospace,"Cascadia Code",Consolas,monospace;font-size:.9em;background:rgba(127,127,127,.18);padding:1px 5px;border-radius:5px}
+.msg.hascode{max-width:min(92%,900px)}
+.msg.hascode .bubble{width:100%}
+.codeblock{white-space:normal;margin:6px 0;border:1px solid rgba(127,127,127,.28);border-radius:10px;background:rgba(127,127,127,.1);overflow:hidden}
+.codehead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3px 4px 3px 12px;font-size:11.5px;opacity:.8;border-bottom:1px solid rgba(127,127,127,.28)}
+.codehead button{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 8px;border:0;border-radius:6px;background:none;color:inherit;font-size:12px;font-weight:500}
+.codehead button:hover{background:rgba(127,127,127,.18)}
+.codeblock pre{margin:0;padding:10px 12px;overflow-x:auto;white-space:pre;tab-size:4;font:12.5px/1.55 ui-monospace,"Cascadia Code",Consolas,monospace}
+.codeblock pre code{background:none;padding:0;font-size:inherit}
+.bubble.collapsed{max-height:20em;overflow:hidden;-webkit-mask-image:linear-gradient(#000 70%,transparent);mask-image:linear-gradient(#000 70%,transparent)}
+.actions{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.actions button{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--muted);transition:color .15s,background-color .15s,opacity .15s}
+.actions button:hover{color:var(--text);background:var(--hover)}
+.actions .count{font-size:12px;color:var(--muted);padding:0 4px}
+.mbody{position:relative}
+.actions.float{position:absolute;bottom:2px;left:100%;margin-left:4px}
+.mine .actions.float{left:auto;right:100%;margin:0 4px 0 0}
+.actions.float button{width:30px;padding:0;justify-content:center}
+.actions .quiet{opacity:0}
+.msg:hover .quiet,.msg:focus-within .quiet,.msg.reveal .quiet{opacity:1}
+
+/* file card */
+.filecard{display:flex;align-items:center;gap:12px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:14px;padding:10px 10px 10px 12px;width:min(340px,100%);min-width:0}
+.mine .filecard{background:var(--accent-soft);border-color:transparent}
+.ficon{flex:none;width:42px;height:42px;border-radius:10px;display:grid;place-items:center;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:#fff;background:#64748b}
+.ficon.dir{background:#ca8a04}.ficon.dir .i{width:22px;height:22px;fill:rgba(255,255,255,.25)}
+.ficon.doc{background:#2563eb}.ficon.vid{background:#9333ea}.ficon.aud{background:#db2777}.ficon.zip{background:#b45309}.ficon.img{background:#0d9488}.ficon.code{background:#475569}
+.finfo{flex:1;min-width:0}
+.fn{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fs{font-size:12px;color:var(--muted)}
+.fs.err{color:var(--bad)}
+.dl{color:var(--muted)}
+.progress{height:4px;background:var(--surface-2);border-radius:2px;overflow:hidden;margin-top:6px}
+.progress>div{height:100%;background:var(--accent);width:0;transition:width .15s}
+.media{display:block;width:min(360px,100%);max-height:280px;border-radius:14px;background:#000}
+audio.media{background:none;height:40px;max-height:none}
+
+/* shared folders */
+.ftoggle .i{transition:transform .15s}
+.ftoggle[aria-expanded="true"] .i{transform:rotate(180deg)}
+.flist{width:min(340px,100%);background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px;max-height:280px;overflow-y:auto}
+.flist a{display:flex;align-items:center;gap:10px;min-height:34px;padding:4px 8px;border-radius:8px;text-decoration:none;font-size:13px;color:var(--text)}
+.flist a:hover{background:var(--hover)}
+.flist .fp{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.flist .fs{flex:none}
+.flist .hint{margin:6px 8px}
+
+/* attach menu */
+.attachwrap{position:relative;flex:none}
+.menu{position:absolute;bottom:calc(100% + 12px);left:-2px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:6px;min-width:170px;z-index:10}
+.menu[hidden]{display:none}
+.menu button{display:flex;align-items:center;gap:10px;width:100%;height:42px;white-space:nowrap;padding:0 12px;border:0;background:none;border-radius:8px;text-align:left;font-size:14px;font-weight:500}
+.menu button:hover,.menu button:focus-visible{background:var(--hover)}
+.menu .i{color:var(--muted)}
+.menu [aria-checked="false"] .i{visibility:hidden}
+.menusep{height:1px;background:var(--border);margin:6px 4px}
+
+/* image galleries */
+.gallery{display:grid;grid-template-columns:1fr 1fr;gap:3px;width:min(320px,100%);border-radius:16px;overflow:hidden;background:var(--border)}
+.msg:not(.cont):not(.mine) .gallery{border-top-left-radius:6px}
+.mine:not(.cont) .gallery{border-top-right-radius:6px}
+.tile{position:relative;padding:0;border:0;margin:0;aspect-ratio:1;background:var(--surface-2);overflow:hidden;cursor:zoom-in;display:block}
+.tile img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .25s var(--ease)}
+.tile:hover img{transform:scale(1.03)}
+.gallery[data-n="1"]{display:block;width:auto;max-width:min(300px,100%);background:var(--surface-2)}
+.gallery[data-n="1"] .tile{aspect-ratio:auto;min-width:120px;min-height:100px}
+.gallery[data-n="1"] .tile img{width:auto;height:auto;max-width:100%;max-height:280px;object-fit:contain;margin:auto}
+.gallery[data-n="3"] .tile:first-child{grid-column:span 2;aspect-ratio:2/1}
+.tile .more{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.5);color:#fff;font-size:24px;font-weight:700}
+.gcap{font-size:12px;color:var(--muted);padding:0 4px}
+
+/* composer */
+footer{padding:10px 20px calc(14px + env(safe-area-inset-bottom));flex:none}
+.composer{display:flex;align-items:flex-end;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:6px;box-shadow:var(--shadow);transition:border-color .15s}
+.composer:focus-within{border-color:var(--accent)}
+.composer textarea{flex:1;resize:none;border:0;background:transparent;outline:none;padding:9px 6px;max-height:40vh;min-height:40px;line-height:1.45}
+#send{width:40px;padding:0}
+#send:disabled{opacity:.45;cursor:default}
+.composer-hint{font-size:11.5px;color:var(--muted);padding:6px 6px 0;text-align:center}
+
+/* files drawer */
+#drawer{width:340px;flex:none;border-left:1px solid var(--border);background:var(--surface);overflow-y:auto;display:none;padding:0 18px 20px}
+#drawer.open{display:block}
+.drawer-head{display:flex;align-items:center;justify-content:space-between;height:64px;position:sticky;top:0;background:var(--surface);z-index:1}
+.drawer-head strong{font-size:16px}
+.qr{margin-top:10px;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.qr[hidden]{display:none}
+.qr svg{width:168px;height:168px;border-radius:10px;border:1px solid var(--border)}
+.qr .hint{margin:0;word-break:break-all}
+#drawer h3{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:14px 0 8px}
+.frow{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;text-decoration:none;color:var(--text);transition:background-color .15s}
+.frow:hover{background:var(--hover)}
+.frow .ficon{width:36px;height:36px;font-size:9.5px}
+.frow .fn{flex:1;min-width:0;font-weight:500}
+.frow .fs{flex:none}
+.hint{font-size:13px;color:var(--muted);margin:8px 0 0}
+
+#scrim{position:fixed;inset:0;background:var(--scrim);z-index:15;display:none}
+
+@media (max-width:820px){
+  #roomsBtn{display:inline-grid}
+  #closeRooms{display:inline-grid}
+  #rooms{position:fixed;inset:0 auto 0 0;width:min(300px,86vw);z-index:20;transform:translateX(-102%);transition:transform .22s var(--ease);box-shadow:var(--shadow)}
+  #rooms.open{transform:none}
+  body.navopen #scrim{display:block}
+  #drawer.open{position:fixed;inset:0;width:auto;z-index:20}
+  header{padding:0 8px 0 6px;height:58px}
+  #log{padding:16px 12px 8px}
+  footer{padding:8px 10px calc(10px + env(safe-area-inset-bottom))}
+  .composer-hint{display:none}
+  .msg{max-width:90%}
+  .gallery{width:min(280px,100%)}
+}
+
+/* overlays */
+#drop{position:fixed;inset:12px;border:2px dashed var(--accent);border-radius:20px;background:color-mix(in srgb,var(--bg) 88%,transparent);display:none;place-items:center;z-index:30;pointer-events:none}
+#drop.show{display:grid}
+#drop .inner{display:flex;flex-direction:column;align-items:center;gap:12px;color:var(--accent-text);font-size:20px;font-weight:600}
+#drop .inner .i{width:40px;height:40px}
+#toast{position:fixed;left:50%;bottom:96px;transform:translate(-50%,8px);background:#0f172a;color:#fff;padding:9px 16px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .18s,transform .18s var(--ease);pointer-events:none;z-index:60;box-shadow:var(--shadow)}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+#viewer{position:fixed;inset:0;z-index:50;background:#07090d;display:flex;flex-direction:column;color:#fff}
+#viewer[hidden]{display:none}
+.vbar{display:flex;align-items:center;gap:12px;padding:10px 12px 10px 18px;flex:none}
+.vbar .iconbtn{color:#cbd5e1}
+.vbar .iconbtn:hover{background:rgba(255,255,255,.1);color:#fff}
+#vCount{font-size:13px;color:#94a3b8;font-variant-numeric:tabular-nums;flex:none}
+.vname{flex:1;min-width:0;font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vstage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;position:relative;padding:0 64px 24px}
+#vImg{max-width:100%;max-height:100%;object-fit:contain;border-radius:6px;user-select:none}
+.vnav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.12);color:#fff;display:grid;place-items:center;transition:background-color .15s}
+.vnav:hover{background:rgba(255,255,255,.22)}
+.vnav.prev{left:12px}.vnav.next{right:12px}
+.vnav[hidden]{display:none}
+@media (max-width:820px){.vstage{padding:0 8px 16px}.vnav{top:auto;bottom:24px;transform:none}}
+
+/* passcode */
+.lockedtag{display:inline-flex;align-items:center;gap:4px;margin-left:6px;color:var(--muted)}
+.lockedtag .i{width:13px;height:13px}
+#lock{position:fixed;inset:0;z-index:70;background:var(--bg);display:grid;place-items:center;padding:24px}
+#lock[hidden]{display:none}
+.lockcard{width:min(360px,100%);display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px}
+.logo.big{width:56px;height:56px;border-radius:16px;margin-bottom:4px}
+.logo.big .i{width:26px;height:26px}
+.lockcard h1{font-size:21px;margin:0;letter-spacing:-.01em}
+.lockcard p{margin:0 0 6px;color:var(--muted)}
+.lockcard .field{width:100%;height:46px;font-size:16px;text-align:center;background:var(--surface);border-color:var(--border)}
+.btn.wide{width:100%;height:46px;font-size:15px}
+.formerr{min-height:1.3em;font-size:13px;color:var(--bad)}
+dialog#secDlg{border:1px solid var(--border);border-radius:16px;padding:20px;width:min(380px,calc(100vw - 32px));background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+dialog#secDlg::backdrop{background:var(--scrim)}
+#secForm{display:flex;flex-direction:column;gap:8px}
+#secForm > label:not(.showpw){font-size:13px;font-weight:500;color:var(--muted);margin-top:4px}
+.dlghead{display:flex;align-items:center;justify-content:space-between;margin:-6px -6px 0 0}
+.dlghead h2{font-size:17px;margin:0}
+.secstate{margin:0;font-size:14px}
+.secstate b{color:var(--accent-text)}
+.showpw{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);cursor:pointer}
+.dlgactions{display:flex;gap:8px;justify-content:flex-end}
+.dlgactions #secRemove{color:var(--bad);margin-right:auto}
+.me .iconbtn{width:36px;height:36px}
+
+@keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* ---------- remote rooms ---------- */
+.tag{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--accent-text);background:var(--accent-soft);border-radius:6px;padding:2px 6px;margin-left:4px;vertical-align:2px}
+.roomrow{display:flex;align-items:center;gap:2px}
+.roomrow .room{flex:1;min-width:0}
+.roomrow .forget{width:32px;height:32px;opacity:0}
+.roomrow:hover .forget,.roomrow:focus-within .forget{opacity:1}
+@media (hover:none){.roomrow .forget{opacity:1}}
+.room .rt{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25;padding:4px 0}
+.room .rk{font:11.5px ui-monospace,"Cascadia Code",Consolas,monospace;color:var(--muted);font-weight:400}
+#roomList .hint{margin:4px 10px}
+.empty .btn{margin-top:18px}
+.empty .hint{margin-top:14px}
+/* files whose sender is offline */
+.away{display:none}
+.offline .away{display:block}
+.offline .dl,.offline .actions .net{opacity:.4;pointer-events:none}
+.offline .ficon{filter:grayscale(1);opacity:.6}
+.tile img:not([src]){visibility:hidden}
+.tile.offline img{opacity:.25}
+.tile.offline::after{content:"Sender offline";position:absolute;inset:0;display:grid;place-items:center;font-size:12px;color:var(--muted);text-align:center;padding:8px}
+.frow.offline{opacity:.5;pointer-events:none}
+.composer-hint.sharing{color:var(--accent-text);font-weight:500}
+@media (max-width:820px){.composer-hint.sharing{display:block}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-hash" viewBox="0 0 24 24"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-file"viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></symbol>
+</svg>
+
+<div id="wrap">
+  <nav id="rooms" aria-label="Rooms">
+    <div class="brandbar">
+      <div class="logo"><svg class="i"><use href="#i-globe"/></svg></div>
+      <span class="brand">LocalShare<span class="tag">Remote</span></span>
+      <button class="iconbtn" id="closeRooms" aria-label="Close rooms"><svg class="i"><use href="#i-x"/></svg></button>
+    </div>
+    <h3 class="sectionlabel">Your rooms</h3>
+    <div id="roomList"></div>
+    <form id="joinForm" autocomplete="off">
+      <label for="joinInput">Make a room, or paste a room link</label>
+      <div class="row">
+        <input id="joinInput" class="field" placeholder="Room name, e.g. work" maxlength="300" autocapitalize="none" spellcheck="false">
+        <button class="btn primary" type="submit">Go</button>
+      </div>
+      <div id="joinPreview"></div>
+    </form>
+    <div class="me">
+      <div class="avatar" id="meAvatar"></div>
+      <label>Your name<input id="name" maxlength="40" autocomplete="off" title="Click to change your name"></label>
+    </div>
+  </nav>
+
+  <section id="chat">
+    <header>
+      <button class="iconbtn" id="roomsBtn" aria-label="Rooms"><svg class="i"><use href="#i-menu"/></svg></button>
+      <div class="titlewrap">
+        <div class="roomtitle"><span id="roomName">LocalShare Remote</span></div>
+        <div class="status"><span class="dot" id="dot"></span><span id="online">Not in a room</span></div>
+      </div>
+      <button class="btn" id="filesBtn" title="Files in this room &amp; the link to it"><svg class="i sm"><use href="#i-folder"/></svg>Files</button>
+    </header>
+    <main id="log" aria-live="polite"></main>
+    <footer id="footer">
+      <div class="composer">
+        <div class="attachwrap">
+          <button class="iconbtn" id="attach" aria-label="Share files or a folder" title="Share files or a folder" aria-haspopup="menu" aria-expanded="false"><svg class="i"><use href="#i-clip"/></svg></button>
+          <div class="menu" id="attachMenu" role="menu" hidden>
+            <button type="button" role="menuitem" data-pick="files"><svg class="i"><use href="#i-file"/></svg>Files</button>
+            <button type="button" role="menuitem" data-pick="folder"><svg class="i"><use href="#i-folder"/></svg>Folder</button>
+            <div class="menusep" role="separator"></div>
+            <button type="button" role="menuitemcheckbox" aria-checked="true" id="skipJunk" title="When sharing a folder, leave out node_modules, .git and whatever its .gitignore lists"><svg class="i"><use href="#i-check"/></svg>Skip junk folders</button>
+          </div>
+        </div>
+        <input type="file" id="fileInput" multiple hidden>
+        <input type="file" id="folderInput" webkitdirectory multiple hidden>
+        <textarea id="text" rows="1" placeholder="Type a message…" aria-label="Message"></textarea>
+        <button class="btn primary" id="send" aria-label="Send" title="Send" disabled><svg class="i"><use href="#i-send"/></svg></button>
+      </div>
+      <div class="composer-hint" id="hint">Enter to send · Shift+Enter for a new line · Drop files or folders anywhere</div>
+    </footer>
+  </section>
+
+  <aside id="drawer" aria-label="Files">
+    <div class="drawer-head"><strong>Files in <span id="drawerRoom"></span></strong><button class="iconbtn" id="closeDrawer" aria-label="Close files"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <h3>Link to this room</h3>
+    <div class="urls" id="drawerUrls"></div>
+    <p class="hint">Anyone with this link can join, from anywhere. Tap to copy.</p>
+    <div class="qr" id="qr" hidden></div>
+    <h3>All files</h3>
+    <p class="hint">Files come straight from the device that shared them, so they can be downloaded only while it has this room open.</p>
+    <div id="fileList"><p class="hint">Loading…</p></div>
+  </aside>
+</div>
+
+<div id="scrim"></div>
+<div id="drop"><div class="inner"><svg class="i"><use href="#i-upload"/></svg>Drop files or folders to share</div></div>
+<div id="toast" role="status"></div>
+
+<div id="viewer" hidden role="dialog" aria-modal="true" aria-label="Image viewer">
+  <div class="vbar">
+    <span id="vCount"></span>
+    <span class="vname" id="vName"></span>
+    <a class="iconbtn" id="vOpen" target="_blank" rel="noopener" aria-label="Open original" title="Open original"><svg class="i"><use href="#i-external"/></svg></a>
+    <a class="iconbtn" id="vDl" aria-label="Download" title="Download"><svg class="i"><use href="#i-download"/></svg></a>
+    <button class="iconbtn" id="vClose" aria-label="Close" title="Close (Esc)"><svg class="i"><use href="#i-x"/></svg></button>
+  </div>
+  <div class="vstage">
+    <button class="vnav prev" id="vPrev" aria-label="Previous image"><svg class="i"><use href="#i-left"/></svg></button>
+    <img id="vImg" alt="">
+    <button class="vnav next" id="vNext" aria-label="Next image"><svg class="i"><use href="#i-right"/></svg></button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const log = $('#log'), textEl = $('#text'), nameEl = $('#name'), drawer = $('#drawer'), roomsNav = $('#rooms');
+  const LONG_CHARS = 1500, LONG_LINES = 20;
+  const GROUP_MS = 5 * 60 * 1000; // messages from one sender within this window are grouped
+  const IMG_RE = /^(png|jpe?g|gif|webp|bmp|avif)$/, VID_RE = /^(mp4|webm|mov)$/, AUD_RE = /^(mp3|wav|ogg|m4a)$/;
+
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  };
+
+  // A room is named by a random key like "k7f3-m9q2-x8wa". The key is the only way in, so it
+  // must be hard to guess. It has no 0/o or 1/l/i, so it can be read out or typed from a screen.
+  const KEY_ABC = 'abcdefghjkmnpqrstuvwxyz23456789';
+  const KEY_RE = /^[a-hjkmnp-z2-9]{4}-[a-hjkmnp-z2-9]{4}-[a-hjkmnp-z2-9]{4}$/;
+  function randomText(n, abc) {
+    const buf = new Uint32Array(n), out = [];
+    crypto.getRandomValues(buf);
+    for (let i = 0; i < n; i++) out.push(abc[buf[i] % abc.length]);
+    return out.join('');
+  }
+  function newKey() { const s = randomText(12, KEY_ABC); return s.slice(0, 4) + '-' + s.slice(4, 8) + '-' + s.slice(8); }
+  // A pasted link ("https://…/r/k7f3-m9q2-x8wa") or a typed key ("K7F3 M9Q2 X8WA"). A plain word is
+  // never a key, so "presentation" makes a room called that instead of joining one.
+  function parseKey(input) {
+    let s = String(input || '').trim();
+    const m = /\/r\/([^/?#\s]+)/.exec(s);
+    if (m) s = m[1];
+    const p = /^([a-z0-9]{4})[-\s]+([a-z0-9]{4})[-\s]+([a-z0-9]{4})$/i.exec(s);
+    const k = p ? (p[1] + '-' + p[2] + '-' + p[3]).toLowerCase() : '';
+    return KEY_RE.test(k) ? k : '';
+  }
+  function keyFromPath() { const m = /^\/r\/([^/]+)\/?$/.exec(location.pathname); return m && KEY_RE.test(m[1]) ? m[1] : ''; }
+
+  let clientId = store.get('ls.id');
+  if (!clientId) { clientId = Math.random().toString(36).slice(2, 10); store.set('ls.id', clientId); }
+
+  // ---------- helpers ----------
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function icon(name, cls) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const s = document.createElementNS(ns, 'svg'); s.setAttribute('class', 'i' + (cls ? ' ' + cls : ''));
+    s.setAttribute('aria-hidden', 'true');
+    const u = document.createElementNS(ns, 'use'); u.setAttribute('href', '#i-' + name); s.appendChild(u);
+    return s;
+  }
+  function fmtSize(b) {
+    if (b < 1024) return b + ' B';
+    const u = ['KB', 'MB', 'GB', 'TB']; let i = -1;
+    do { b /= 1024; i++; } while (b >= 1024 && i < u.length - 1);
+    return b.toFixed(b < 10 ? 1 : 0) + ' ' + u[i];
+  }
+  function fmtClock(t) { return new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+  function fmtDay(t) {
+    const d = new Date(t), now = new Date();
+    const y = new Date(now); y.setDate(now.getDate() - 1);
+    if (d.toDateString() === now.toDateString()) return 'Today';
+    if (d.toDateString() === y.toDateString()) return 'Yesterday';
+    return d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
+  }
+  // A shared file, a shared folder as .zip, or one file inside a shared folder (sub = its path).
+  function fileUrl(ev, sub) {
+    const name = sub ? sub.split('/').pop() : ev.type === 'folder' ? ev.name + '.zip' : ev.name;
+    return '/r/' + room + '/f/' + ev.fid + '/' + encodeURIComponent(name) + (sub ? '?path=' + encodeURIComponent(sub) : '');
+  }
+  function listUrl(ev) { return '/r/' + room + '/list/' + ev.fid; }
+  function folderIcon() { const d = el('div', 'ficon dir'); d.appendChild(icon('folder')); return d; }
+  function ext(name) { const m = /\.([^.]+)$/.exec(name); return m ? m[1].toLowerCase() : ''; }
+  function isImage(ev) { return ev.type === 'file' && IMG_RE.test(ext(ev.name)); }
+  function ficon(name) {
+    const x = ext(name);
+    const kind = IMG_RE.test(x) ? 'img' : VID_RE.test(x) || /^(mkv|avi)$/.test(x) ? 'vid' : AUD_RE.test(x) || x === 'flac' ? 'aud'
+      : /^(pdf|docx?|txt|rtf|odt|xlsx?|csv|pptx?|md)$/.test(x) ? 'doc' : /^(zip|rar|7z|tar|gz|iso)$/.test(x) ? 'zip'
+      : /^(js|ts|json|html|css|py|exe|msi|apk|sh|ps1)$/.test(x) ? 'code' : '';
+    return el('div', 'ficon' + (kind ? ' ' + kind : ''), x.slice(0, 4) || 'file');
+  }
+  function hue(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h % 360; }
+  function initials(n) {
+    const w = String(n || '?').trim().split(/\s+/);
+    return ((w[0] || '?')[0] + (w.length > 1 && /\D/.test(w[1][0]) ? w[1][0] : '')).toUpperCase();
+  }
+  function paintAvatar(a, name, key) { a.textContent = initials(name); a.style.background = 'hsl(' + hue(key || name) + ' 55% 40%)'; }
+
+  function defaultName() {
+    const ua = navigator.userAgent;
+    const n = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android'
+      : /Windows/.test(ua) ? 'Windows PC' : /Mac/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : 'Device';
+    return n + ' ' + Math.floor(10 + Math.random() * 90);
+  }
+  let myName = store.get('ls.name') || defaultName();
+  store.set('ls.name', myName);
+  nameEl.value = myName;
+  paintAvatar($('#meAvatar'), myName, clientId);
+  nameEl.addEventListener('change', () => {
+    myName = nameEl.value.trim().slice(0, 40) || defaultName();
+    nameEl.value = myName;
+    store.set('ls.name', myName);
+    paintAvatar($('#meAvatar'), myName, clientId);
+  });
+  nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') nameEl.blur(); });
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1600);
+  }
+  function copyText(t) {
+    const done = () => toast('Copied');
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(t).then(done, () => fallback());
+    } else fallback();
+    function fallback() {
+      const ta = document.createElement('textarea');
+      ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) { toast('Copy failed'); }
+      ta.remove();
+    }
+  }
+  function saveText(t, from, time) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([t], { type: 'text/plain;charset=utf-8' }));
+    const d = new Date(time);
+    a.download = 'message-' + room + '-' + d.toISOString().slice(0, 16).replace(/[T:]/g, '-') + '.txt';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  // Message text: ```fenced blocks``` become code boxes with their own Copy button,
+  // `backticks` become inline code, and links stay clickable.
+  const FENCE_RE = /(^|\n)```([^\n`]*)\n([\s\S]*?)(?:\n```[ \t]*(?=\n|$)|$)/g;
+  function hasCode(text) { FENCE_RE.lastIndex = 0; return FENCE_RE.test(text); }
+  function renderText(parent, text) {
+    let at = 0, m;
+    FENCE_RE.lastIndex = 0;
+    while ((m = FENCE_RE.exec(text))) {
+      inlineCode(parent, text.slice(at, m.index));
+      parent.appendChild(codeBlock(m[3], m[2].trim()));
+      at = FENCE_RE.lastIndex;
+      if (text[at] === '\n') at++; // the block already ends the line
+    }
+    inlineCode(parent, text.slice(at));
+  }
+  function inlineCode(parent, text) {
+    text.split(/`([^`\n]+)`/g).forEach((p, i) => {
+      if (i % 2) parent.appendChild(el('code', null, p));
+      else if (p) linkify(parent, p);
+    });
+  }
+  function codeBlock(code, lang) {
+    const box = el('div', 'codeblock');
+    const head = el('div', 'codehead');
+    head.appendChild(el('span', null, lang || 'code'));
+    const b = el('button', null); b.type = 'button';
+    b.appendChild(icon('copy', 'sm')); b.appendChild(document.createTextNode('Copy'));
+    b.addEventListener('click', () => copyText(code));
+    head.appendChild(b);
+    box.appendChild(head);
+    const pre = el('pre'); pre.appendChild(el('code', null, code)); box.appendChild(pre);
+    return box;
+  }
+  function linkify(parent, text) {
+    const parts = text.split(/(https?:\/\/[^\s<>"]+)/g);
+    parts.forEach((p, i) => {
+      if (i % 2) { const a = el('a', null, p); a.href = p; a.target = '_blank'; a.rel = 'noopener'; parent.appendChild(a); }
+      else if (p) parent.appendChild(document.createTextNode(p));
+    });
+  }
+  function nearBottom() { return log.scrollHeight - log.scrollTop - log.clientHeight < 160; }
+  function scrollDown() { log.scrollTop = log.scrollHeight; stuck = true; }
+  // When the reader is at the bottom, keep them there as images/videos finish loading and grow.
+  let stuck = true;
+  log.addEventListener('scroll', () => { stuck = nearBottom(); }, { passive: true });
+  function pinOnLoad(media, evt) { media.addEventListener(evt, () => { if (stuck) log.scrollTop = log.scrollHeight; }, { once: true }); }
+
+  // ---------- rooms & links ----------
+  let room = keyFromPath(); // '' = not in a room (the welcome screen)
+  // Rooms this device has joined, newest first: [{ key, title }]. Rooms are never listed by
+  // the server, so this list is the only record of them on this device.
+  let myRooms = [];
+  try { myRooms = (JSON.parse(store.get('lsr.rooms') || '[]') || []).filter((r) => r && KEY_RE.test(r.key)); } catch (e) {}
+  function saveRooms() { store.set('lsr.rooms', JSON.stringify(myRooms)); }
+  function rememberRoom(key, title) {
+    let r = myRooms.find((x) => x.key === key);
+    if (!r) { r = { key, title: '' }; myRooms.unshift(r); }
+    if (title) r.title = title;
+    saveRooms(); renderRooms();
+  }
+  function roomTitle(key) { const r = myRooms.find((x) => x.key === key); return (r && r.title) || key; }
+  function roomPath(k) { return k ? '/r/' + k : '/'; }
+  function roomLinks() { return room ? [location.origin + roomPath(room)] : []; }
+  function renderUrls(container) {
+    container.innerHTML = '';
+    roomLinks().forEach((u) => {
+      const b = el('button', 'url'); b.type = 'button';
+      b.appendChild(el('span', null, u.replace(/^https?:\/\//, '')));
+      b.appendChild(icon('copy', 'sm'));
+      b.title = 'Copy ' + u;
+      b.addEventListener('click', () => copyText(u));
+      container.appendChild(b);
+    });
+  }
+  function refreshUrls() { document.querySelectorAll('[data-urls]').forEach(renderUrls); }
+  function renderQr() {
+    const box = $('#qr'); box.innerHTML = '';
+    const u = roomLinks()[0];
+    const svg = u && qrSvg(u);
+    box.hidden = !svg;
+    if (!svg) return;
+    svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'QR code for ' + u);
+    box.appendChild(svg);
+    box.appendChild(el('p', 'hint', 'Scan with a phone camera to open this room.'));
+  }
+
+  function renderRooms() {
+    const list = $('#roomList'); list.innerHTML = '';
+    if (!myRooms.length) { list.appendChild(el('p', 'hint', 'No rooms yet. Make one below, or open a room link someone sent you.')); return; }
+    myRooms.forEach((r) => {
+      const row = el('div', 'roomrow');
+      const b = el('button', 'room' + (r.key === room ? ' active' : ''));
+      b.type = 'button';
+      if (r.key === room) b.setAttribute('aria-current', 'page');
+      b.appendChild(icon('hash', 'sm hash'));
+      const t = el('span', 'rt');
+      t.appendChild(el('span', 'rn', r.title || r.key));
+      if (r.title) t.appendChild(el('span', 'rk', r.key));
+      b.appendChild(t);
+      b.addEventListener('click', () => { switchRoom(r.key); closeNav(); });
+      const x = el('button', 'iconbtn forget'); x.type = 'button';
+      x.setAttribute('aria-label', 'Remove ' + (r.title || r.key) + ' from your rooms'); x.title = 'Remove from this list';
+      x.appendChild(icon('x', 'sm'));
+      x.addEventListener('click', () => forgetRoom(r.key));
+      row.appendChild(b); row.appendChild(x);
+      list.appendChild(row);
+    });
+  }
+  function forgetRoom(key) {
+    if (hasOffers(key) && !confirm('You are sharing files in this room. Remove it from your list and stop sharing them?')) return;
+    for (const [fid, o] of offers) if (o.key === key) offers.delete(fid);
+    sharingHint();
+    myRooms = myRooms.filter((r) => r.key !== key);
+    saveRooms();
+    dropConn(key);
+    if (key === room) switchRoom(''); else renderRooms();
+    toast('Removed from your list. Open the room link to join again.');
+  }
+
+  const joinInput = $('#joinInput');
+  joinInput.addEventListener('input', () => {
+    const v = joinInput.value.trim(), k = parseKey(v);
+    $('#joinPreview').textContent = !v ? '' : k ? 'Joins room ' + k : 'Makes a new room called “' + v.slice(0, 40) + '”';
+  });
+  $('#joinForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const v = joinInput.value.trim(), k = parseKey(v);
+    joinInput.value = ''; $('#joinPreview').textContent = '';
+    closeNav();
+    if (k) switchRoom(k); else createRoom(v);
+  });
+  const newTitles = {}; // key -> name for rooms made on this page, sent once they connect
+  function createRoom(title) {
+    const k = newKey();
+    title = String(title || '').trim().slice(0, 40);
+    newTitles[k] = title;
+    rememberRoom(k, title);
+    switchRoom(k);
+    setDrawer(true); // show the link and QR code so it can be shared right away
+  }
+  function openNav() { roomsNav.classList.add('open'); document.body.classList.add('navopen'); }
+  function closeNav() { roomsNav.classList.remove('open'); document.body.classList.remove('navopen'); }
+  $('#roomsBtn').addEventListener('click', openNav);
+  $('#closeRooms').addEventListener('click', closeNav);
+  $('#scrim').addEventListener('click', closeNav);
+
+  function switchRoom(k, fromHistory) {
+    if (k === room && (!k || conns.has(k))) return;
+    const old = room;
+    room = k;
+    if (k) { rememberRoom(k); store.set('lsr.last', k); }
+    if (!fromHistory && location.pathname !== roomPath(room)) history.pushState(null, '', roomPath(room));
+    if (old && old !== k) releaseConn(old);
+    show();
+  }
+  window.addEventListener('popstate', () => switchRoom(keyFromPath(), true));
+
+  // ---------- QR code (byte mode, error correction M, versions 1–15) ----------
+  // Made here rather than by a library or web service, since LocalShare often runs without internet.
+  const QR_ECC = [0, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24]; // codewords per block
+  const QR_BLOCKS = [0, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5, 5, 8, 9, 9, 10];
+  function qrRawModules(v) {
+    let n = (16 * v + 128) * v + 64;
+    if (v >= 2) { const a = Math.floor(v / 7) + 2; n -= (25 * a - 10) * a - 55; if (v >= 7) n -= 36; }
+    return n;
+  }
+  function qrMul(x, y) {
+    let z = 0;
+    for (let i = 7; i >= 0; i--) { z = (z << 1) ^ ((z >>> 7) * 0x11d); z ^= ((y >>> i) & 1) * x; }
+    return z;
+  }
+  function qrEcc(data, degree) {
+    const div = new Array(degree).fill(0); div[degree - 1] = 1;
+    for (let i = 0, root = 1; i < degree; i++, root = qrMul(root, 2)) {
+      for (let j = 0; j < degree; j++) { div[j] = qrMul(div[j], root); if (j + 1 < degree) div[j] ^= div[j + 1]; }
+    }
+    const rem = new Array(degree).fill(0);
+    for (const b of data) {
+      const f = b ^ rem.shift(); rem.push(0);
+      div.forEach((c, i) => { rem[i] ^= qrMul(c, f); });
+    }
+    return rem;
+  }
+  function qrMatrix(text) {
+    const bytes = new TextEncoder().encode(text);
+    let v = 1, cap;
+    for (; v <= 15; v++) {
+      cap = Math.floor(qrRawModules(v) / 8) - QR_ECC[v] * QR_BLOCKS[v];
+      if (4 + (v < 10 ? 8 : 16) + bytes.length * 8 <= cap * 8) break;
+    }
+    if (v > 15) return null;
+    // data bits: mode, length, bytes, terminator, then pad bytes
+    const bits = [];
+    const put = (val, n) => { for (let i = n - 1; i >= 0; i--) bits.push((val >>> i) & 1); };
+    put(4, 4); put(bytes.length, v < 10 ? 8 : 16); bytes.forEach((b) => put(b, 8));
+    put(0, Math.min(4, cap * 8 - bits.length)); put(0, (8 - bits.length % 8) % 8);
+    for (let p = 0xec; bits.length < cap * 8; p ^= 0xec ^ 0x11) put(p, 8);
+    const data = [];
+    for (let i = 0; i < bits.length; i += 8) data.push(parseInt(bits.slice(i, i + 8).join(''), 2));
+    // split into blocks, add error correction, interleave
+    const nb = QR_BLOCKS[v], ecl = QR_ECC[v], raw = Math.floor(qrRawModules(v) / 8);
+    const nShort = nb - raw % nb, shortLen = Math.floor(raw / nb);
+    const blocks = [];
+    for (let i = 0, k = 0; i < nb; i++) {
+      const d = data.slice(k, k + shortLen - ecl + (i < nShort ? 0 : 1)); k += d.length;
+      const e = qrEcc(d, ecl);
+      if (i < nShort) d.push(0);
+      blocks.push(d.concat(e));
+    }
+    const words = [];
+    for (let i = 0; i < blocks[0].length; i++) blocks.forEach((b, j) => { if (i !== shortLen - ecl || j >= nShort) words.push(b[i]); });
+
+    const size = v * 4 + 17;
+    const mod = [], fn = [];
+    for (let y = 0; y < size; y++) { mod.push(new Array(size).fill(false)); fn.push(new Array(size).fill(false)); }
+    const set = (x, y, dark) => { mod[y][x] = dark; fn[y][x] = true; };
+    for (let i = 0; i < size; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
+    [[3, 3], [size - 4, 3], [3, size - 4]].forEach(([cx, cy]) => {
+      for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+        const x = cx + dx, y = cy + dy, d = Math.max(Math.abs(dx), Math.abs(dy));
+        if (x >= 0 && x < size && y >= 0 && y < size) set(x, y, d !== 2 && d !== 4);
+      }
+    });
+    if (v >= 2) {
+      const na = Math.floor(v / 7) + 2, step = Math.ceil((v * 4 + 4) / (na * 2 - 2)) * 2, pos = [6];
+      for (let p = size - 7; pos.length < na; p -= step) pos.splice(1, 0, p);
+      pos.forEach((ay, i) => pos.forEach((ax, j) => {
+        if ((i === 0 && j === 0) || (i === 0 && j === na - 1) || (i === na - 1 && j === 0)) return;
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) set(ax + dx, ay + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+      }));
+    }
+    const drawFormat = (mask) => {
+      const d = mask; // error correction M is 00
+      let r = d;
+      for (let i = 0; i < 10; i++) r = (r << 1) ^ ((r >>> 9) * 0x537);
+      const b = ((d << 10) | r) ^ 0x5412, bit = (i) => ((b >>> i) & 1) === 1;
+      for (let i = 0; i <= 5; i++) set(8, i, bit(i));
+      set(8, 7, bit(6)); set(8, 8, bit(7)); set(7, 8, bit(8));
+      for (let i = 9; i < 15; i++) set(14 - i, 8, bit(i));
+      for (let i = 0; i < 8; i++) set(size - 1 - i, 8, bit(i));
+      for (let i = 8; i < 15; i++) set(8, size - 15 + i, bit(i));
+      set(8, size - 8, true);
+    };
+    drawFormat(0); // reserve the format areas
+    if (v >= 7) {
+      let r = v;
+      for (let i = 0; i < 12; i++) r = (r << 1) ^ ((r >>> 11) * 0x1f25);
+      const b = (v << 12) | r;
+      for (let i = 0; i < 18; i++) {
+        const dark = ((b >>> i) & 1) === 1, a = size - 11 + i % 3, c = Math.floor(i / 3);
+        set(a, c, dark); set(c, a, dark);
+      }
+    }
+    // data in the zigzag order
+    let n = 0;
+    for (let right = size - 1; right >= 1; right -= 2) {
+      if (right === 6) right = 5;
+      for (let vert = 0; vert < size; vert++) for (let j = 0; j < 2; j++) {
+        const x = right - j, y = ((right + 1) & 2) === 0 ? size - 1 - vert : vert;
+        if (!fn[y][x] && n < words.length * 8) { mod[y][x] = ((words[n >>> 3] >>> (7 - (n & 7))) & 1) === 1; n++; }
+      }
+    }
+    const MASKS = [(x, y) => (x + y) % 2 === 0, (x, y) => y % 2 === 0, (x) => x % 3 === 0, (x, y) => (x + y) % 3 === 0,
+      (x, y) => (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0, (x, y) => (x * y) % 2 + (x * y) % 3 === 0,
+      (x, y) => ((x * y) % 2 + (x * y) % 3) % 2 === 0, (x, y) => (((x + y) % 2) + (x * y) % 3) % 2 === 0];
+    const applyMask = (m) => { for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (!fn[y][x] && MASKS[m](x, y)) mod[y][x] = !mod[y][x]; };
+    // Pick the mask with the fewest long runs, 2×2 blocks and dark/light imbalance (any mask scans).
+    const penalty = () => {
+      let p = 0, dark = 0;
+      for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+        if (mod[y][x]) dark++;
+        if (x < size - 1 && y < size - 1 && mod[y][x] === mod[y][x + 1] && mod[y][x] === mod[y + 1][x] && mod[y][x] === mod[y + 1][x + 1]) p += 3;
+      }
+      for (let y = 0; y < size; y++) for (const horiz of [true, false]) {
+        let run = 1;
+        for (let x = 1; x <= size; x++) {
+          const same = x < size && (horiz ? mod[y][x] === mod[y][x - 1] : mod[x][y] === mod[x - 1][y]);
+          if (same) run++; else { if (run >= 5) p += run - 2; run = 1; }
+        }
+      }
+      return p + Math.floor(Math.abs(dark * 20 - size * size * 10) / (size * size)) * 10;
+    };
+    let best = 0, bestP = Infinity;
+    for (let m = 0; m < 8; m++) {
+      applyMask(m); drawFormat(m);
+      const p = penalty(); if (p < bestP) { bestP = p; best = m; }
+      applyMask(m);
+    }
+    applyMask(best); drawFormat(best);
+    return mod;
+  }
+  function qrSvg(text) {
+    const m = qrMatrix(text);
+    if (!m) return null;
+    const q = 4, s = m.length + q * 2;
+    let d = '';
+    m.forEach((row, y) => row.forEach((dark, x) => { if (dark) d += 'M' + (x + q) + ' ' + (y + q) + 'h1v1h-1z'; }));
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + s + ' ' + s);
+    svg.setAttribute('shape-rendering', 'crispEdges');
+    svg.innerHTML = '<rect width="' + s + '" height="' + s + '" fill="#fff"/><path fill="#000" d="' + d + '"/>';
+    return svg;
+  }
+
+  // ---------- rendering ----------
+  function showEmpty() {
+    const e = el('div', 'empty'); e.id = 'empty';
+    const ic = el('div', 'bigicon'); ic.appendChild(icon('chat')); e.appendChild(ic);
+    e.appendChild(el('h2', null, 'No messages yet'));
+    e.appendChild(el('p', null, 'Type a message below, or drop files anywhere to share them. Open this link on your other device to join:'));
+    const u = el('div', 'urls'); u.setAttribute('data-urls', ''); renderUrls(u);
+    e.appendChild(u);
+    log.appendChild(e);
+  }
+  function showWelcome() {
+    const e = el('div', 'empty'); e.id = 'empty';
+    const ic = el('div', 'bigicon'); ic.appendChild(icon('globe')); e.appendChild(ic);
+    e.appendChild(el('h2', null, 'Share between devices, anywhere'));
+    e.appendChild(el('p', null, 'Make a room, then open its link on your other device. Messages are kept in the room. Files go straight from the device that shares them and are never stored on the server.'));
+    const b = el('button', 'btn primary', 'Make a room'); b.type = 'button';
+    b.addEventListener('click', () => createRoom(''));
+    e.appendChild(b);
+    e.appendChild(el('p', 'hint', 'Got a room link? Open it, or paste it in the box under Your rooms.'));
+    log.appendChild(e);
+  }
+
+  // A render context remembers the previous event so consecutive messages from
+  // one sender are grouped, and consecutive images collapse into one gallery.
+  function newCtx() { return { last: null, gallery: null, day: null }; }
+  let tail = newCtx();
+  let live = false; // true while rendering a message that just arrived (animates in)
+
+  function renderInto(parent, ev, ctx) {
+    const day = new Date(ev.time).toDateString();
+    if (day !== ctx.day) {
+      const d = el('div', 'daysep', fmtDay(ev.time)); d.dataset.day = day;
+      parent.appendChild(d);
+      ctx.day = day; ctx.last = null; ctx.gallery = null;
+    }
+    const prev = ctx.last;
+    const same = !!prev && prev.client === ev.client && prev.from === ev.from && ev.time - prev.time < GROUP_MS;
+    ctx.last = ev;
+    if (isImage(ev) && same && ctx.gallery) { ctx.gallery.add(ev); return; }
+
+    const shell = msgShell(ev, same);
+    if (isImage(ev)) {
+      ctx.gallery = makeGallery();
+      ctx.gallery.add(ev);
+      shell.body.appendChild(ctx.gallery.el);
+      shell.body.appendChild(ctx.gallery.cap);
+    } else {
+      ctx.gallery = null;
+      fillContent(shell, ev);
+    }
+    parent.appendChild(shell.el);
+  }
+
+  function msgShell(ev, cont) {
+    const mine = ev.client === clientId;
+    const wrap = el('div', 'msg' + (mine ? ' mine' : '') + (cont ? ' cont' : '') + (live ? ' new' : ''));
+    wrap.title = fmtClock(ev.time);
+    if (!mine) { const a = el('div', 'avatar'); paintAvatar(a, ev.from, ev.client || ev.from); a.setAttribute('aria-hidden', 'true'); wrap.appendChild(a); }
+    const body = el('div', 'mbody');
+    if (!cont) {
+      const meta = el('div', 'meta');
+      meta.appendChild(el('span', 'who', mine ? 'You' : ev.from));
+      meta.appendChild(el('span', 'time', fmtClock(ev.time)));
+      body.appendChild(meta);
+    }
+    wrap.appendChild(body);
+    return { el: wrap, body };
+  }
+
+  function fileCard(name, sizeText) {
+    const card = el('div', 'filecard');
+    card.appendChild(ficon(name));
+    const info = el('div', 'finfo');
+    info.appendChild(el('div', 'fn', name)).title = name;
+    const sz = info.appendChild(el('div', 'fs', sizeText));
+    card.appendChild(info);
+    return { card, info, sz };
+  }
+
+  // Shared files and folders are marked with their sender's page, so they can be greyed
+  // out (with a note) while that page is closed. See paintAvailability.
+  function availability(holder, info, ev) {
+    holder.dataset.owner = ev.owner;
+    info.appendChild(el('div', 'fs away', ev.client === clientId
+      ? 'Not shared any more: the page it was shared from was closed'
+      : 'Not available right now: ' + ev.from + ' is offline'));
+  }
+
+  function fillContent(shell, ev) {
+    const body = shell.body;
+    const actions = el('div', 'actions');
+    if (ev.type === 'msg') {
+      const bubble = el('div', 'bubble');
+      const lines = ev.text.split('\n').length;
+      const long = ev.text.length > LONG_CHARS || lines > LONG_LINES;
+      renderText(bubble, ev.text);
+      if (hasCode(ev.text)) shell.el.classList.add('hascode');
+      body.appendChild(bubble);
+      if (long) {
+        bubble.classList.add('collapsed');
+        const t = el('button', null, 'Show all'); t.type = 'button';
+        t.addEventListener('click', () => {
+          const c = bubble.classList.toggle('collapsed');
+          t.textContent = c ? 'Show all' : 'Show less';
+          if (c) shell.el.scrollIntoView({ block: 'nearest' });
+        });
+        actions.appendChild(t);
+      }
+      const c = el('button', long ? null : 'quiet'); c.type = 'button';
+      c.appendChild(icon('copy', 'sm'));
+      if (long) c.appendChild(document.createTextNode('Copy'));
+      else {
+        // short messages: a small copy button beside the bubble, shown on hover (or tap on touch screens)
+        actions.classList.add('float'); c.setAttribute('aria-label', 'Copy message'); c.title = 'Copy';
+        bubble.addEventListener('click', (e) => { if (e.target.tagName !== 'A' && matchMedia('(hover:none)').matches) shell.el.classList.toggle('reveal'); });
+      }
+      c.addEventListener('click', () => copyText(ev.text));
+      actions.appendChild(c);
+      if (long) {
+        const s = el('button', null); s.type = 'button';
+        s.appendChild(icon('download', 'sm')); s.appendChild(document.createTextNode('Save as .txt'));
+        s.addEventListener('click', () => saveText(ev.text, ev.from, ev.time));
+        actions.appendChild(s);
+        actions.appendChild(el('span', 'count', ev.text.length.toLocaleString() + ' characters'));
+      }
+    } else if (ev.type === 'folder') {
+      const f = fileCard(ev.name, ev.count.toLocaleString() + (ev.count === 1 ? ' file · ' : ' files · ') + fmtSize(ev.size));
+      f.card.replaceChild(folderIcon(), f.card.firstChild);
+      if (ev.skipped && ev.skipped.length) {
+        const more = Math.max(ev.skippedTotal || 0, ev.skipped.length) - 4;
+        const note = f.info.appendChild(el('div', 'fs', 'Left out: ' + ev.skipped.slice(0, 4).join(', ') + (more > 0 ? ' and ' + more.toLocaleString() + ' more' : '')));
+        note.title = 'Left out: ' + ev.skipped.join(', ') + (more > ev.skipped.length - 4 ? ', …' : '');
+      }
+      availability(body, f.info, ev);
+      const dl = el('a', 'iconbtn dl'); dl.href = fileUrl(ev); dl.setAttribute('download', ev.name + '.zip');
+      dl.setAttribute('aria-label', 'Download ' + ev.name + ' as .zip'); dl.title = 'Download as .zip';
+      dl.appendChild(icon('download'));
+      f.card.appendChild(dl);
+      body.appendChild(f.card);
+      const t = el('button', 'ftoggle net'); t.type = 'button'; t.setAttribute('aria-expanded', 'false');
+      t.appendChild(document.createTextNode('Show files')); t.appendChild(icon('chevron', 'sm'));
+      let list = null;
+      t.addEventListener('click', () => {
+        const open = t.getAttribute('aria-expanded') !== 'true';
+        t.setAttribute('aria-expanded', String(open));
+        t.firstChild.textContent = open ? 'Hide files' : 'Show files';
+        if (!open) { if (list) list.hidden = true; return; }
+        if (list) { list.hidden = false; return; }
+        list = el('div', 'flist'); list.appendChild(el('p', 'hint', 'Loading…'));
+        body.insertBefore(list, actions);
+        loadFolderList(ev, list, () => { list.remove(); list = null; });
+      });
+      actions.appendChild(t);
+      const z = el('button', 'net'); z.type = 'button';
+      z.appendChild(icon('download', 'sm')); z.appendChild(document.createTextNode('Download .zip'));
+      z.addEventListener('click', () => dl.click());
+      actions.appendChild(z);
+      // Chrome and Edge can write into a folder the user picks (this page is https, so it works everywhere).
+      if (window.showDirectoryPicker) {
+        const sv = el('button', 'net'); sv.type = 'button';
+        sv.appendChild(icon('folder', 'sm')); sv.appendChild(document.createTextNode('Save into folder…'));
+        sv.title = 'Copy the files into a folder on this computer, replacing ones that changed';
+        sv.addEventListener('click', () => saveIntoFolder(ev, sv));
+        actions.appendChild(sv);
+      }
+    } else {
+      const x = ext(ev.name);
+      // Media plays straight from the sender, so it only starts loading when asked to.
+      if (VID_RE.test(x)) {
+        const v = el('video', 'media'); v.controls = true; v.preload = 'none'; v.dataset.src = fileUrl(ev) + '?view';
+        pinOnLoad(v, 'loadedmetadata');
+        body.appendChild(v);
+      } else if (AUD_RE.test(x)) {
+        const au = el('audio', 'media'); au.controls = true; au.preload = 'none'; au.dataset.src = fileUrl(ev) + '?view';
+        body.appendChild(au);
+      }
+      const f = fileCard(ev.name, fmtSize(ev.size));
+      availability(body, f.info, ev);
+      const dl = el('a', 'iconbtn dl'); dl.href = fileUrl(ev); dl.setAttribute('download', ev.name);
+      dl.setAttribute('aria-label', 'Download ' + ev.name); dl.title = 'Download';
+      dl.appendChild(icon('download'));
+      f.card.appendChild(dl);
+      body.appendChild(f.card);
+    }
+    if (actions.childNodes.length) body.appendChild(actions);
+  }
+
+  // Writes a shared folder's files into a folder the user picks. Files already there with
+  // the same size and a newer date are skipped; others are replaced. Nothing is deleted.
+  function sameBytes(a, b) {
+    if (a.byteLength !== b.byteLength) return false;
+    const x = new Uint8Array(a), y = new Uint8Array(b);
+    for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
+    return true;
+  }
+  async function saveIntoFolder(ev, btn) {
+    const folder = ev.name;
+    let dir;
+    try { dir = await window.showDirectoryPicker({ id: 'ls-save', mode: 'readwrite' }); } catch (e) { return; } // cancelled
+    const label = btn.lastChild, idle = label.textContent;
+    btn.disabled = true;
+    let added = 0, updated = 0, same = 0, failed = 0;
+    try {
+      const r = await fetch(listUrl(ev));
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const files = await r.json(), queue = files.slice();
+      const subdirs = new Map(); // "a/b" -> handle, so each folder is opened once
+      const subdir = (p) => {
+        if (!p) return Promise.resolve(dir);
+        if (!subdirs.has(p)) {
+          const i = p.lastIndexOf('/');
+          subdirs.set(p, subdir(i < 0 ? '' : p.slice(0, i)).then((d) => d.getDirectoryHandle(p.slice(i + 1), { create: true })));
+        }
+        return subdirs.get(p);
+      };
+      const one = async (f) => {
+        try {
+          const i = f.path.lastIndexOf('/');
+          const d = await subdir(i < 0 ? '' : f.path.slice(0, i)), name = f.path.slice(i + 1);
+          let old = null;
+          try { old = await (await d.getFileHandle(name)).getFile(); } catch (e) { /* new file */ }
+          // Same size: compare contents (dates can't tell, since saving here stamps today's date).
+          // Very large files fall back to the date.
+          const big = f.size > (64 << 20);
+          if (old && old.size === f.size && big && old.lastModified >= f.mtime) { same++; return; }
+          const res = await fetch(fileUrl(ev, f.path));
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          let body = res.body;
+          if (old && old.size === f.size && !big) {
+            const [a, b] = await Promise.all([res.arrayBuffer(), old.arrayBuffer()]);
+            if (sameBytes(a, b)) { same++; return; }
+            body = new Blob([a]).stream();
+          }
+          const w = await (await d.getFileHandle(name, { create: true })).createWritable();
+          await body.pipeTo(w);
+          if (old) updated++; else added++;
+        } catch (e) { failed++; }
+        label.textContent = 'Saving ' + (added + updated + same + failed) + ' of ' + files.length + '…';
+      };
+      await Promise.all([1, 2, 3].map(async () => { while (queue.length) await one(queue.shift()); }));
+      toast('Saved “' + folder + '”: ' + added + ' new, ' + updated + ' updated, ' + same + ' unchanged' + (failed ? ', ' + failed + ' failed' : ''));
+    } catch (e) {
+      toast('Could not save “' + folder + '”');
+    }
+    label.textContent = idle;
+    btn.disabled = false;
+  }
+
+  function loadFolderList(ev, list, onFail) {
+    const forRoom = room;
+    fetch(listUrl(ev))
+      .then((r) => (r.ok ? r.json() : r.text().then((t) => Promise.reject(new Error(t)))))
+      .then((files) => {
+        if (forRoom !== room) return;
+        list.innerHTML = '';
+        if (!files.length) { list.appendChild(el('p', 'hint', 'This folder is empty.')); return; }
+        const SHOW = 500;
+        files.slice(0, SHOW).forEach((f) => {
+          const a = el('a'); a.href = fileUrl(ev, f.path); a.setAttribute('download', f.path.split('/').pop());
+          a.title = f.path;
+          a.appendChild(el('span', 'fp', f.path));
+          a.appendChild(el('span', 'fs', fmtSize(f.size)));
+          list.appendChild(a);
+        });
+        if (files.length > SHOW) list.appendChild(el('p', 'hint', 'and ' + (files.length - SHOW).toLocaleString() + ' more. Download the .zip to get everything.'));
+      }).catch((e) => {
+        toast(e.message && e.message.length < 200 ? e.message : 'Could not load the file list.');
+        onFail();
+      });
+  }
+
+  // ---------- image galleries ----------
+  const MAX_TILES = 4;
+  function makeGallery() {
+    const g = { items: [], el: el('div', 'gallery'), cap: el('div', 'gcap') };
+    g.add = (ev) => {
+      const i = g.items.push(ev) - 1;
+      const n = g.items.length;
+      g.el.dataset.n = Math.min(n, MAX_TILES);
+      if (i < MAX_TILES) {
+        const b = el('button', 'tile'); b.type = 'button';
+        b.setAttribute('aria-label', 'View ' + ev.name);
+        const img = el('img'); img.loading = 'lazy'; img.decoding = 'async'; img.alt = ev.name; img.dataset.src = fileUrl(ev) + '?view'; b.dataset.owner = ev.owner;
+        pinOnLoad(img, 'load');
+        b.appendChild(img);
+        b.addEventListener('click', () => openViewer(g.items, i));
+        g.el.appendChild(b);
+      } else {
+        const last = g.el.children[MAX_TILES - 1];
+        let more = last.querySelector('.more');
+        if (!more) more = last.appendChild(el('span', 'more'));
+        more.textContent = '+' + (n - MAX_TILES);
+        last.setAttribute('aria-label', 'View all ' + n + ' images');
+      }
+      const total = g.items.reduce((s, e) => s + (e.size || 0), 0);
+      g.cap.textContent = n === 1 ? ev.name + ' · ' + fmtSize(ev.size) : n + ' images · ' + fmtSize(total);
+    };
+    return g;
+  }
+
+  // ---------- image viewer ----------
+  const viewer = $('#viewer'), vImg = $('#vImg');
+  let vItems = [], vIdx = 0, vReturn = null;
+  function showViewer() {
+    const ev = vItems[vIdx];
+    vImg.src = fileUrl(ev) + '?view'; vImg.alt = ev.name;
+    $('#vName').textContent = ev.name;
+    $('#vCount').textContent = vItems.length > 1 ? (vIdx + 1) + ' / ' + vItems.length : fmtSize(ev.size);
+    $('#vDl').href = fileUrl(ev); $('#vDl').setAttribute('download', ev.name);
+    $('#vOpen').href = fileUrl(ev) + '?view';
+    $('#vPrev').hidden = $('#vNext').hidden = vItems.length < 2;
+  }
+  function openViewer(items, i) {
+    vItems = items; vIdx = i; vReturn = document.activeElement;
+    showViewer(); viewer.hidden = false; $('#vClose').focus();
+  }
+  function closeViewer() { viewer.hidden = true; vImg.removeAttribute('src'); if (vReturn) vReturn.focus(); }
+  function step(d) { vIdx = (vIdx + d + vItems.length) % vItems.length; showViewer(); }
+  $('#vClose').addEventListener('click', closeViewer);
+  $('#vPrev').addEventListener('click', () => step(-1));
+  $('#vNext').addEventListener('click', () => step(1));
+  viewer.addEventListener('click', (e) => { if (e.target.classList.contains('vstage')) closeViewer(); });
+  document.addEventListener('keydown', (e) => {
+    if (viewer.hidden) { if (e.key === 'Escape') { closeNav(); } return; }
+    if (e.key === 'Escape') closeViewer();
+    else if (e.key === 'ArrowLeft' && vItems.length > 1) step(-1);
+    else if (e.key === 'ArrowRight' && vItems.length > 1) step(1);
+  });
+  let touchX = null;
+  viewer.addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+  viewer.addEventListener('touchend', (e) => {
+    if (touchX == null || vItems.length < 2) return;
+    const dx = e.changedTouches[0].clientX - touchX; touchX = null;
+    if (Math.abs(dx) > 50) step(dx < 0 ? 1 : -1);
+  });
+
+  // ---------- older messages ----------
+  let firstId = null;
+  function olderButton(hasMore) {
+    const old = $('#older'); if (old) old.remove();
+    if (!hasMore) return;
+    const b = el('button', 'btn', 'Load older messages'); b.id = 'older'; b.type = 'button';
+    b.addEventListener('click', () => { if (!send(room, { t: 'older', before: firstId })) toast('Not connected'); });
+    log.insertBefore(b, log.firstChild);
+  }
+  function gotOlder(data) {
+    if (!data.events.length) { olderButton(false); return; }
+    const h = log.scrollHeight;
+    const anchor = $('#older') ? $('#older').nextSibling : log.firstChild;
+    const frag = document.createDocumentFragment();
+    const ctx = newCtx();
+    data.events.forEach((ev) => { seen.add(ev.id); renderInto(frag, ev, ctx); });
+    log.insertBefore(frag, anchor);
+    // don't repeat the day divider at the seam
+    if (anchor && anchor.classList && anchor.classList.contains('daysep') && anchor.dataset.day === ctx.day) anchor.remove();
+    firstId = data.events[0].id;
+    olderButton(data.hasMore);
+    paintAvailability();
+    log.scrollTop += log.scrollHeight - h;
+  }
+
+  // ---------- connections ----------
+  // One WebSocket per room: the room on screen, plus every room where this page shares
+  // files, so others can still download them after you switch rooms.
+  // A random secret per page load tells the room which shared files this page answers for.
+  const tabSecret = randomText(24, 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789');
+  const conns = new Map(); // key -> { key, ws, owners: Set of pages online, devices, retry, timer }
+  let seen = new Set(), unread = 0;
+  function setStatus(on, text) { $('#dot').classList.toggle('on', on); $('#online').textContent = text; }
+  function updateTitle() { document.title = (unread ? '(' + unread + ') ' : '') + (room ? roomTitle(room) + ' · ' : '') + 'LocalShare Remote'; }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { unread = 0; updateTitle(); } });
+
+  function openConn(key) {
+    let c = conns.get(key);
+    if (!c) { c = { key, ws: null, owners: new Set(), devices: 0, retry: 0, timer: null }; conns.set(key, c); dial(c); }
+    return c;
+  }
+  function dial(c) {
+    clearTimeout(c.timer);
+    const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/r/' + c.key
+      + '/ws?client=' + encodeURIComponent(clientId) + '&tab=' + tabSecret);
+    ws.binaryType = 'arraybuffer';
+    c.ws = ws;
+    ws.onopen = () => {
+      c.retry = 0;
+      if (c.key in newTitles) { if (newTitles[c.key]) ws.send(JSON.stringify({ t: 'title', title: newTitles[c.key] })); delete newTitles[c.key]; }
+    };
+    ws.onmessage = (e) => {
+      if (typeof e.data !== 'string' || e.data === 'pong') return;
+      let m; try { m = JSON.parse(e.data); } catch (_) { return; }
+      onServer(c, m);
+    };
+    ws.onclose = () => {
+      if (c.ws !== ws) return;
+      c.ws = null;
+      stopServing(ws);
+      if (conns.get(c.key) !== c) return;
+      if (c.key === room) setStatus(false, 'Reconnecting…');
+      c.timer = setTimeout(() => dial(c), Math.min(10000, 1000 * 2 ** c.retry++));
+    };
+  }
+  function releaseConn(key) { if (!hasOffers(key)) dropConn(key); }
+  function dropConn(key) {
+    const c = conns.get(key);
+    if (!c) return;
+    conns.delete(key);
+    clearTimeout(c.timer);
+    if (c.ws) { const ws = c.ws; c.ws = null; stopServing(ws); ws.close(); }
+  }
+  function send(key, obj) {
+    const c = conns.get(key);
+    if (!c || !c.ws || c.ws.readyState !== WebSocket.OPEN) return false;
+    c.ws.send(JSON.stringify(obj));
+    return true;
+  }
+  // Keeps idle connections from being dropped along the way (answered without waking the room).
+  setInterval(() => conns.forEach((c) => { if (c.ws && c.ws.readyState === WebSocket.OPEN) c.ws.send('ping'); }), 30000);
+
+  function onServer(c, m) {
+    const here = c.key === room;
+    switch (m.type) {
+      case 'history':
+        c.owners = new Set(m.owners || []); c.devices = m.devices || 0;
+        if (m.title) titled(c.key, m.title);
+        if (here) { onlineStatus(c); gotHistory(m); }
+        return;
+      case 'online':
+        c.owners = new Set(m.owners || []); c.devices = m.devices || 0;
+        if (here) { onlineStatus(c); paintAvailability(); }
+        return;
+      case 'title': titled(c.key, m.title); return;
+      case 'older': if (here) gotOlder(m); return;
+      case 'files': if (here) gotFiles(m.events); return;
+      case 'error': toast(m.error); return;
+      case 'pull': serve(c, m); return;
+      case 'list': listFor(c, m); return;
+      case 'ack': { const s = sending.get(m.tid); if (s) { s.acked += m.n; s.wake(); } return; }
+      case 'cancel': { const s = sending.get(m.tid); if (s) { s.cancelled = true; s.wake(); } return; }
+    }
+    if (here && (m.type === 'msg' || m.type === 'file' || m.type === 'folder')) gotEvent(m);
+  }
+  function titled(key, title) {
+    rememberRoom(key, title);
+    if (key !== room) return;
+    $('#roomName').textContent = title; $('#drawerRoom').textContent = title;
+    textEl.placeholder = 'Message ' + title;
+    updateTitle();
+  }
+  function onlineStatus(c) { setStatus(true, c.devices + (c.devices === 1 ? ' device' : ' devices') + ' here'); }
+
+  // Greys out files whose sender's page is closed, and loads media once its sender is back.
+  function paintAvailability() {
+    const c = conns.get(room), owners = c ? c.owners : new Set();
+    document.querySelectorAll('[data-owner]').forEach((n) => {
+      const on = owners.has(n.dataset.owner);
+      n.classList.toggle('offline', !on);
+      if (!on) return;
+      n.querySelectorAll('[data-src]').forEach((m) => { m.src = m.dataset.src; m.removeAttribute('data-src'); });
+      if (n.dataset.src) { n.src = n.dataset.src; n.removeAttribute('data-src'); }
+    });
+  }
+
+  // Shows the room on screen. Its messages arrive as 'history' once connected.
+  function show() {
+    seen = new Set(); unread = 0; firstId = null; tail = newCtx();
+    log.innerHTML = '';
+    $('#footer').hidden = !room; $('#filesBtn').hidden = !room;
+    $('#roomName').textContent = room ? roomTitle(room) : 'LocalShare Remote';
+    $('#drawerRoom').textContent = room ? roomTitle(room) : '';
+    updateTitle(); renderRooms();
+    if (!room) { setDrawer(false); setStatus(false, 'Not in a room'); showWelcome(); return; }
+    textEl.placeholder = 'Message ' + roomTitle(room);
+    refreshUrls(); renderUrls($('#drawerUrls')); renderQr();
+    if (drawer.classList.contains('open')) loadFiles();
+    const c = conns.get(room);
+    if (c && c.ws && c.ws.readyState === WebSocket.OPEN) { onlineStatus(c); send(room, { t: 'history' }); }
+    else { setStatus(false, 'Connecting…'); openConn(room); }
+  }
+
+  function gotHistory(m) {
+    seen = new Set(); log.innerHTML = ''; tail = newCtx();
+    if (!m.events.length) showEmpty();
+    const frag = document.createDocumentFragment();
+    m.events.forEach((x) => { seen.add(x.id); renderInto(frag, x, tail); });
+    log.appendChild(frag);
+    firstId = m.events.length ? m.events[0].id : null;
+    olderButton(m.hasMore);
+    paintAvailability();
+    scrollDown();
+    if (drawer.classList.contains('open')) loadFiles();
+  }
+  function gotEvent(ev) {
+    if (seen.has(ev.id)) return;
+    seen.add(ev.id);
+    const empty = $('#empty'); if (empty) empty.remove();
+    const stick = nearBottom() || ev.client === clientId;
+    live = true;
+    renderInto(log, ev, tail);
+    live = false;
+    paintAvailability();
+    if (stick) scrollDown();
+    if (document.hidden && ev.client !== clientId) { unread++; updateTitle(); }
+    if (ev.type !== 'msg' && drawer.classList.contains('open')) loadFiles();
+  }
+
+  // ---------- sending text ----------
+  function autosize() {
+    textEl.style.height = 'auto'; textEl.style.height = Math.min(textEl.scrollHeight, window.innerHeight * 0.4) + 'px';
+    $('#send').disabled = !textEl.value.trim();
+  }
+  textEl.addEventListener('input', autosize);
+  textEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendText(); }
+  });
+  $('#send').addEventListener('click', sendText);
+
+  function sendText() {
+    const text = textEl.value;
+    if (!text.trim() || !room) return;
+    if (text.length > 500000) { toast('That message is too long. Save it as a .txt file and share that.'); return; }
+    if (!send(room, { t: 'msg', from: myName, text })) { toast('Not connected. Your message is still in the box.'); return; }
+    textEl.value = ''; autosize();
+    textEl.focus();
+  }
+
+  // ---------- sharing files ----------
+  // Nothing is uploaded. Sharing posts a card in the room; when someone downloads it, the
+  // room asks this page for the bytes, which stream through to them and are not kept.
+  // So shared files stay available only while this page stays open.
+  const offers = new Map(); // fid -> { key, kind: 'file', file } or { key, kind: 'folder', name, items: [{ file, path }] }
+  function hasOffers(key) { for (const o of offers.values()) if (o.key === key) return true; return false; }
+  function offer(o, msg) {
+    if (!room) return;
+    const fid = randomText(16, 'abcdefghijklmnopqrstuvwxyz0123456789');
+    o.key = room;
+    if (!send(room, Object.assign({ t: 'offer', fid, from: myName }, msg))) { toast('Not connected. Try again in a moment.'); return; }
+    offers.set(fid, o);
+    sharingHint();
+  }
+  // (Named as in the local LocalShare page, whose picking and drag-and-drop code calls them.)
+  function uploadFiles(files) {
+    for (const f of files) offer({ kind: 'file', file: f }, { kind: 'file', name: f.name || 'file', size: f.size });
+  }
+  function uploadFolder(name, items, skipped) {
+    skipped = skipped ? [...skipped] : [];
+    if (!items.length) { toast(skipped.length ? 'Nothing to share in “' + name + '”: everything in it was skipped as junk' : '“' + name + '” is empty'); return; }
+    const size = items.reduce((s, it) => s + it.file.size, 0);
+    offer({ kind: 'folder', name, items }, { kind: 'folder', name, size, count: items.length, skipped: skipped.slice(0, 30), skippedTotal: skipped.length });
+  }
+  const HINT = $('#hint').textContent;
+  function sharingHint() {
+    const n = offers.size, h = $('#hint');
+    h.classList.toggle('sharing', n > 0);
+    h.textContent = n ? 'Sharing ' + n + (n === 1 ? ' item' : ' items') + ' from this device. Keep this page open so others can download.' : HINT;
+  }
+  // Leaving or reloading the page stops sharing, so ask first.
+  window.addEventListener('beforeunload', (e) => { if (offers.size) { e.preventDefault(); e.returnValue = ''; } });
+
+  // ---------- answering downloads ----------
+  // The room sends { pull, tid, fid, path?, range?, head? }. We answer 'start' (or 'fail'),
+  // then binary frames [uint32 LE tid][up to 256 KB], then 'end'. The room acknowledges each
+  // frame once the downloader has taken it; at most WINDOW bytes wait unacknowledged.
+  const CHUNK = 256 * 1024, WINDOW = 4 << 20;
+  const sending = new Map(); // tid -> { ws, sent, acked, cancelled, wake }
+
+  function serve(c, m) {
+    const ws = c.ws, tid = m.tid;
+    const reply = (obj) => { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(Object.assign({ tid }, obj))); };
+    const o = offers.get(m.fid);
+    if (!o || o.key !== c.key) return reply({ t: 'fail', status: 410, error: 'This is no longer shared.' });
+    if (o.kind === 'folder' && m.path == null) {
+      reply({ t: 'start', zip: true });
+      if (!m.head) pump(ws, tid, zipStream(o.name, o.items));
+      return;
+    }
+    const it = o.kind === 'file' ? o : o.items.find((x) => x.path === m.path);
+    if (!it) return reply({ t: 'fail', status: 404, error: 'There is no such file in this folder.' });
+    const size = it.file.size;
+    let start = 0, end = size - 1, partial = false;
+    const r = /^bytes=(\d*)-(\d*)$/.exec(m.range || '');
+    if (r && size > 0 && (r[1] || r[2])) {
+      if (r[1] === '') start = Math.max(0, size - parseInt(r[2], 10));
+      else { start = parseInt(r[1], 10); if (r[2] !== '') end = Math.min(end, parseInt(r[2], 10)); }
+      if (start > end || start >= size) return reply({ t: 'start', status: 416, size });
+      partial = true;
+    }
+    reply({ t: 'start', size, start, end, partial });
+    if (!m.head && size > 0) pump(ws, tid, fileStream(it.file, start, end + 1));
+  }
+
+  async function* fileStream(file, from, to) {
+    for (let at = from; at < to; at += CHUNK) yield new Uint8Array(await file.slice(at, Math.min(to, at + CHUNK)).arrayBuffer());
+  }
+
+  async function pump(ws, tid, source) {
+    const s = { ws, sent: 0, acked: 0, cancelled: false, wake() {} };
+    sending.set(tid, s);
+    try {
+      for await (const chunk of source) {
+        for (let at = 0; at < chunk.length; at += CHUNK) {
+          const part = chunk.subarray(at, at + CHUNK);
+          while (!s.cancelled && s.sent - s.acked >= WINDOW) await new Promise((ok) => { s.wake = ok; });
+          if (s.cancelled || ws.readyState !== WebSocket.OPEN) return;
+          const frame = new Uint8Array(4 + part.length);
+          new DataView(frame.buffer).setUint32(0, tid, true);
+          frame.set(part, 4);
+          ws.send(frame);
+          s.sent += part.length;
+        }
+      }
+      ws.send(JSON.stringify({ t: 'end', tid }));
+    } catch (e) {
+      if (!s.cancelled && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'fail', tid, error: 'The file could not be read on the sending device.' }));
+    } finally {
+      sending.delete(tid);
+    }
+  }
+  function stopServing(ws) { sending.forEach((s) => { if (s.ws === ws) { s.cancelled = true; s.wake(); } }); }
+
+  // The files in a shared folder, for "Show files" and "Save into folder…" on other devices.
+  function listFor(c, m) {
+    const o = offers.get(m.fid);
+    const files = o && o.key === c.key && o.kind === 'folder'
+      ? o.items.map((it) => ({ path: it.path, size: it.file.size, mtime: it.file.lastModified })).sort((a, b) => a.path.localeCompare(b.path))
+      : [];
+    for (let i = 0; i === 0 || i < files.length; i += 2000) {
+      c.ws.send(JSON.stringify({ t: 'listed', rid: m.rid, files: files.slice(i, i + 2000), done: i + 2000 >= files.length }));
+    }
+  }
+
+  // ZIP-BEGIN: a shared folder as one .zip, made while it streams (stored, not compressed;
+  // Zip64 when needed, so folders over 4 GB work). Same layout as the local server's zips.
+  const CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+    return t;
+  })();
+  function crc32(buf, crc) {
+    crc = ~crc;
+    for (let i = 0; i < buf.length; i++) crc = CRC_TABLE[(crc ^ buf[i]) & 255] ^ (crc >>> 8);
+    return ~crc >>> 0;
+  }
+  function dosDateTime(ms) {
+    const d = new Date(ms);
+    const y = Math.max(1980, Math.min(2107, d.getFullYear()));
+    return {
+      time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1),
+      date: ((y - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate(),
+    };
+  }
+  async function* zipStream(top, items) {
+    const enc = new TextEncoder(), MAX32 = 0xffffffff, central = [];
+    let offset = 0;
+    for (const it of items) {
+      const name = enc.encode(top + '/' + it.path);
+      const { time, date } = dosDateTime(it.file.lastModified);
+      const big = it.file.size >= MAX32 - 1024 * 1024; // margin in case the file grows while being read
+      const start = offset;
+      const lh = new Uint8Array(30 + name.length + (big ? 20 : 0)), v = new DataView(lh.buffer);
+      v.setUint32(0, 0x04034b50, true); v.setUint16(4, big ? 45 : 20, true);
+      v.setUint16(6, 0x0808, true); // sizes in data descriptor, UTF-8 names; method 0 = stored
+      v.setUint16(10, time, true); v.setUint16(12, date, true);
+      if (big) { v.setUint32(18, MAX32, true); v.setUint32(22, MAX32, true); }
+      v.setUint16(26, name.length, true); v.setUint16(28, big ? 20 : 0, true);
+      lh.set(name, 30);
+      if (big) { v.setUint16(30 + name.length, 1, true); v.setUint16(32 + name.length, 16, true); }
+      offset += lh.length; yield lh;
+      let crc = 0, size = 0;
+      for await (const b of fileStream(it.file, 0, it.file.size)) {
+        crc = crc32(b, crc); size += b.length; offset += b.length;
+        yield b;
+      }
+      const dd = new Uint8Array(big ? 24 : 16), dv = new DataView(dd.buffer);
+      dv.setUint32(0, 0x08074b50, true); dv.setUint32(4, crc, true);
+      if (big) { dv.setBigUint64(8, BigInt(size), true); dv.setBigUint64(16, BigInt(size), true); }
+      else { dv.setUint32(8, size, true); dv.setUint32(12, size, true); }
+      offset += dd.length; yield dd;
+      central.push({ name, time, date, crc, size, start, big });
+    }
+    const cdStart = offset;
+    for (const c of central) {
+      const z = [];
+      if (c.size >= MAX32 || c.big) z.push(c.size, c.size);
+      if (c.start >= MAX32) z.push(c.start);
+      const xl = z.length ? 4 + z.length * 8 : 0, nl = c.name.length;
+      const ch = new Uint8Array(46 + nl + xl), v = new DataView(ch.buffer);
+      v.setUint32(0, 0x02014b50, true);
+      v.setUint16(4, 45, true); v.setUint16(6, z.length ? 45 : 20, true);
+      v.setUint16(8, 0x0808, true);
+      v.setUint16(12, c.time, true); v.setUint16(14, c.date, true);
+      v.setUint32(16, c.crc, true);
+      const sz32 = c.size >= MAX32 || c.big ? MAX32 : c.size;
+      v.setUint32(20, sz32, true); v.setUint32(24, sz32, true);
+      v.setUint16(28, nl, true); v.setUint16(30, xl, true);
+      v.setUint32(42, c.start >= MAX32 ? MAX32 : c.start, true);
+      ch.set(c.name, 46);
+      if (xl) {
+        v.setUint16(46 + nl, 1, true); v.setUint16(48 + nl, z.length * 8, true);
+        z.forEach((n, i) => v.setBigUint64(50 + nl + i * 8, BigInt(n), true));
+      }
+      offset += ch.length; yield ch;
+    }
+    const cdSize = offset - cdStart, n = central.length;
+    if (n >= 0xffff || cdStart >= MAX32 || cdSize >= MAX32) {
+      const z = new Uint8Array(76), v = new DataView(z.buffer);
+      v.setUint32(0, 0x06064b50, true); v.setBigUint64(4, 44n, true);
+      v.setUint16(12, 45, true); v.setUint16(14, 45, true);
+      v.setBigUint64(24, BigInt(n), true); v.setBigUint64(32, BigInt(n), true);
+      v.setBigUint64(40, BigInt(cdSize), true); v.setBigUint64(48, BigInt(cdStart), true);
+      v.setUint32(56, 0x07064b50, true); v.setBigUint64(64, BigInt(offset), true); v.setUint32(72, 1, true);
+      offset += z.length; yield z;
+    }
+    const end = new Uint8Array(22), v = new DataView(end.buffer);
+    v.setUint32(0, 0x06054b50, true);
+    v.setUint16(8, Math.min(n, 0xffff), true); v.setUint16(10, Math.min(n, 0xffff), true);
+    v.setUint32(12, Math.min(cdSize, MAX32), true); v.setUint32(16, Math.min(cdStart, MAX32), true);
+    yield end;
+  }
+  // ZIP-END
+
+  // ---------- skipping junk when sending folders ----------
+  // Dependency, cache and version-control folders are left out, plus whatever the
+  // folder's own .gitignore files list. "Skip junk folders" in the paperclip menu turns this off.
+  const JUNK_DIRS = new Set(['node_modules', '.git', '.svn', '.hg', '__pycache__', '.venv', 'venv', '.pnpm-store',
+    '.next', '.nuxt', '.turbo', '.cache', '.parcel-cache', '.gradle', '.vs']);
+  const JUNK_FILES = new Set(['.git', 'thumbs.db', '.ds_store', 'desktop.ini']); // .git is a file in worktrees and submodules
+  const isJunk = (name, isDir) => (isDir ? JUNK_DIRS : JUNK_FILES).has(name.toLowerCase());
+  const reEsc = (s) => s.replace(/[.+^${}()|[\]\\\/]/g, '\\$&');
+
+  // A .gitignore pattern as a regex: * and ? stay inside one folder, ** crosses folders.
+  function globRe(g) {
+    let s = '';
+    for (let i = 0; i < g.length; i++) {
+      const c = g[i];
+      if (c === '*') {
+        if (g[i + 1] !== '*') s += '[^/]*';
+        else if (g[i + 2] === '/') { s += '(?:.*/)?'; i += 2; }
+        else { s += '.*'; i++; }
+      } else if (c === '?') s += '[^/]';
+      else if (c === '[') {
+        const j = g.indexOf(']', i + 2);
+        if (j < 0) { s += '\\['; continue; }
+        const cls = g.slice(i + 1, j);
+        s += '[' + (cls[0] === '!' ? '^' + cls.slice(1) : cls).replace(/\\/g, '\\\\') + ']';
+        i = j;
+      } else if (c === '\\' && i + 1 < g.length) s += reEsc(g[++i]);
+      else s += reEsc(c);
+    }
+    return s;
+  }
+  function parseGitignore(text) {
+    const rules = [];
+    for (let line of text.split(/\r?\n/)) {
+      line = line.replace(/([^\\])\s+$/, '$1');
+      if (!line.trim() || line[0] === '#') continue;
+      let neg = false, dir = false;
+      if (line[0] === '!') { neg = true; line = line.slice(1); }
+      else if (line[0] === '\\' && (line[1] === '!' || line[1] === '#')) line = line.slice(1);
+      if (line.endsWith('/')) { dir = true; line = line.slice(0, -1); }
+      // A slash at the start or in the middle ties the pattern to this .gitignore's folder;
+      // without one it matches a name at any depth.
+      const anchored = line.includes('/');
+      line = line.replace(/^\//, '');
+      if (!line) continue;
+      try { rules.push({ neg, dir, re: new RegExp((anchored ? '^' : '(?:^|/)') + globRe(line) + '$', 'i') }); } catch (e) { /* bad pattern */ }
+    }
+    return rules;
+  }
+  // rules: Map of folder ("" or "src/") -> its .gitignore rules. Like git, the last matching
+  // rule wins, deeper .gitignore files win over higher ones, and "!" brings a path back.
+  function gitIgnored(rules, p, isDir) {
+    let ignored = false, base = '';
+    const parts = p.split('/');
+    for (let i = 0; i < parts.length; i++) {
+      const rs = rules.get(base);
+      if (rs) {
+        const rel = p.slice(base.length);
+        for (const r of rs) if ((!r.dir || isDir) && r.re.test(rel)) ignored = !r.neg;
+      }
+      base += parts[i] + '/';
+    }
+    return ignored;
+  }
+  // Callers must check a folder before anything inside it (git can't bring back
+  // a file whose folder is ignored, and neither do we).
+  function junkFilter() {
+    const rules = new Map(), skipped = new Set();
+    return {
+      skipped, // names left out, e.g. "node_modules/", ".env"
+      add(base, text) { const r = parseGitignore(text); if (r.length) rules.set(base, r); },
+      skip(p, isDir) {
+        const name = p.slice(p.lastIndexOf('/') + 1);
+        if (!isJunk(name, isDir) && !gitIgnored(rules, p, isDir)) return false;
+        skipped.add(isDir ? name + '/' : name);
+        return true;
+      },
+    };
+  }
+  // Folders picked with the paperclip arrive as a flat list of every file.
+  async function filterPicked(items) {
+    const filter = junkFilter();
+    const gis = items.filter((it) => /(^|\/)\.gitignore$/.test(it.path) &&
+      it.path.split('/').slice(0, -1).every((s) => !isJunk(s, true)));
+    const texts = await Promise.all(gis.map((it) => it.file.text().catch(() => '')));
+    gis.forEach((it, i) => filter.add(it.path.slice(0, -'.gitignore'.length), texts[i]));
+    const dirSkip = new Map(), keep = [];
+    outer: for (const it of items) {
+      const parts = it.path.split('/');
+      let d = '';
+      for (let i = 0; i < parts.length - 1; i++) {
+        d += (i ? '/' : '') + parts[i];
+        let s = dirSkip.get(d);
+        if (s === undefined) { s = filter.skip(d, true); dirSkip.set(d, s); }
+        if (s) continue outer;
+      }
+      if (!filter.skip(it.path, false)) keep.push(it);
+    }
+    return { items: keep, skipped: filter.skipped };
+  }
+
+  // ---------- picking files and folders ----------
+  const folderInput = $('#folderInput');
+  const canPickFolder = 'webkitdirectory' in folderInput && !/iPhone|iPad|iPod/.test(navigator.userAgent);
+  const attachBtn = $('#attach'), attachMenu = $('#attachMenu');
+  function setMenu(open) {
+    attachMenu.hidden = !open; attachBtn.setAttribute('aria-expanded', String(open));
+    if (open) attachMenu.querySelector('button').focus();
+  }
+  attachBtn.addEventListener('click', () => {
+    if (!canPickFolder) { $('#fileInput').click(); return; }
+    setMenu(attachMenu.hidden);
+  });
+  const skipJunkBtn = $('#skipJunk');
+  let skipJunk = store.get('ls_skipJunk') !== '0';
+  skipJunkBtn.setAttribute('aria-checked', String(skipJunk));
+  skipJunkBtn.addEventListener('click', () => {
+    skipJunk = !skipJunk;
+    skipJunkBtn.setAttribute('aria-checked', String(skipJunk));
+    store.set('ls_skipJunk', skipJunk ? '1' : '0');
+    toast(skipJunk ? 'Folders will be sent without junk' : 'Folders will be sent with everything in them');
+  });
+  attachMenu.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-pick]'); if (!b) return;
+    setMenu(false);
+    (b.dataset.pick === 'folder' ? folderInput : $('#fileInput')).click();
+  });
+  document.addEventListener('click', (e) => { if (!attachMenu.hidden && !e.target.closest('.attachwrap')) setMenu(false); });
+  attachMenu.addEventListener('keydown', (e) => {
+    const items = [...attachMenu.querySelectorAll('button')], i = items.indexOf(document.activeElement);
+    if (e.key === 'Escape') { setMenu(false); attachBtn.focus(); }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); }
+  });
+  $('#fileInput').addEventListener('change', (e) => { uploadFiles(e.target.files); e.target.value = ''; });
+  folderInput.addEventListener('change', (e) => {
+    // webkitRelativePath is "Top/sub/file.txt"; group by the top folder
+    const groups = new Map();
+    for (const f of e.target.files) {
+      const parts = (f.webkitRelativePath || f.name).split('/');
+      const top = parts.length > 1 ? parts.shift() : 'Folder';
+      if (!groups.has(top)) groups.set(top, []);
+      groups.get(top).push({ file: f, path: parts.join('/') });
+    }
+    e.target.value = '';
+    if (!groups.size) toast('That folder is empty');
+    groups.forEach((items, name) => {
+      if (!skipJunk) return uploadFolder(name, items);
+      filterPicked(items).then((r) => uploadFolder(name, r.items, r.skipped), () => toast('Could not read “' + name + '”'));
+    });
+  });
+
+  textEl.addEventListener('paste', (e) => {
+    const files = e.clipboardData && e.clipboardData.files;
+    if (files && files.length) { e.preventDefault(); uploadFiles(files); }
+  });
+
+  // ---------- drag and drop (files and folders) ----------
+  function readEntries(reader) { return new Promise((res, rej) => reader.readEntries(res, rej)); }
+  const entryFile = (entry) => new Promise((res, rej) => entry.file(res, rej));
+  async function listDir(dirEntry) {
+    const reader = dirEntry.createReader(), all = [];
+    for (let batch = await readEntries(reader); batch.length; batch = await readEntries(reader)) all.push(...batch);
+    return all;
+  }
+  // Reads a dropped folder into out[] as { file, path }. With a filter, junk
+  // folders are skipped without being opened, so a huge node_modules costs nothing.
+  async function walkDir(dirEntry, prefix, out, filter) {
+    const children = await listDir(dirEntry);
+    const gi = filter && children.find((c) => c.isFile && c.name === '.gitignore');
+    if (gi) { try { filter.add(prefix, await (await entryFile(gi)).text()); } catch (e) { /* unreadable */ } }
+    for (const child of children) {
+      const p = prefix + child.name;
+      if (filter && filter.skip(p, child.isDirectory)) continue;
+      if (child.isFile) { try { out.push({ file: await entryFile(child), path: p }); } catch (e) { /* unreadable */ } }
+      else if (child.isDirectory) await walkDir(child, p + '/', out, filter);
+    }
+  }
+  function handleDrop(dt) {
+    // Entries must be taken synchronously, before the drop event ends.
+    const items = dt.items ? [...dt.items].filter((i) => i.kind === 'file') : [];
+    const entries = items.map((i) => (i.webkitGetAsEntry ? i.webkitGetAsEntry() : null));
+    if (!entries.length || entries.some((x) => !x)) { uploadFiles(dt.files); return; }
+    const files = [];
+    entries.forEach((entry, i) => {
+      if (entry.isFile) { const f = items[i].getAsFile(); if (f) files.push(f); return; }
+      const out = [], filter = skipJunk ? junkFilter() : null;
+      walkDir(entry, '', out, filter)
+        .then(() => uploadFolder(entry.name, out, filter && filter.skipped))
+        .catch(() => toast('Could not read “' + entry.name + '”'));
+    });
+    if (files.length) uploadFiles(files);
+  }
+
+  let dragDepth = 0;
+  const hasFiles = (e) => e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types, 'Files') >= 0;
+  window.addEventListener('dragenter', (e) => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth++; $('#drop').classList.add('show'); });
+  window.addEventListener('dragover', (e) => { if (hasFiles(e)) e.preventDefault(); });
+  window.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) $('#drop').classList.remove('show'); });
+  window.addEventListener('drop', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault(); dragDepth = 0; $('#drop').classList.remove('show');
+    handleDrop(e.dataTransfer);
+  });
+
+  // ---------- files drawer ----------
+  function loadFiles() {
+    if (!send(room, { t: 'files' })) $('#fileList').innerHTML = '<p class="hint">Not connected.</p>';
+  }
+  function gotFiles(events) {
+    const list = $('#fileList'); list.innerHTML = '';
+    if (!events.length) { list.appendChild(el('p', 'hint', 'No files in this room yet.')); return; }
+    events.forEach((f) => {
+      const folder = f.type === 'folder';
+      const a = el('a', 'frow'); a.href = fileUrl(f);
+      a.dataset.owner = f.owner;
+      a.setAttribute('download', folder ? f.name + '.zip' : f.name);
+      a.title = folder ? f.name + ' (download as .zip)' : f.name;
+      a.appendChild(folder ? folderIcon() : ficon(f.name));
+      a.appendChild(el('span', 'fn', f.name));
+      a.appendChild(el('span', 'fs', folder ? f.count + (f.count === 1 ? ' file · ' : ' files · ') + fmtSize(f.size) : fmtSize(f.size)));
+      list.appendChild(a);
+    });
+    paintAvailability();
+  }
+  function setDrawer(open) {
+    drawer.classList.toggle('open', open);
+    $('#filesBtn').classList.toggle('on', open);
+    if (open) loadFiles();
+  }
+  $('#filesBtn').addEventListener('click', () => setDrawer(!drawer.classList.contains('open')));
+  $('#closeDrawer').addEventListener('click', () => setDrawer(false));
+
+  // ---------- start ----------
+  // Open the room in the address bar; on the bare address, the last room used.
+  if (!room) {
+    const last = store.get('lsr.last');
+    if (last && myRooms.some((r) => r.key === last)) room = last;
+  }
+  if (location.pathname !== roomPath(room)) history.replaceState(null, '', roomPath(room));
+  if (room) { rememberRoom(room); store.set('lsr.last', room); }
+  show();
+})();
+</script>
+</body>
+</html>
